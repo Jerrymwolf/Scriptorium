@@ -1,0 +1,11 @@
+.superpowers/
+__pycache__/
+*.pyc
+.venv/
+.env
+.DS_Store
+node_modules/
+
+# Per-review state (excluded by default; students can override per-repo)
+pdfs/
+extracts/
