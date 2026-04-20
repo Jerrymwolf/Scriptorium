@@ -10,6 +10,7 @@ This module replaces that path with a pure-Python writer that:
      is always *data*, never interpreted as TOML syntax.
 """
 
+import os
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any, get_args, get_origin, get_type_hints
@@ -108,13 +109,85 @@ def _coerce(value: str, field_type: Any) -> Any:
     raise TypeError(f"Unsupported field type: {field_type!r}")
 
 
+class ConfigCorruptError(Exception):
+    """Raised when a TOML config file exists but cannot be parsed (§3.1)."""
+
+
+_ENV_STRING_KEYS: dict[str, str] = {
+    "SCRIPTORIUM_OBSIDIAN_VAULT": "obsidian_vault",
+}
+
+
+def _load_toml_safe(path: Path) -> dict:
+    try:
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as e:
+        raise ConfigCorruptError(f"{path}: {e}") from e
+    section = raw.get("scriptorium", {})
+    if not isinstance(section, dict):
+        raise ConfigCorruptError(f"{path}: [scriptorium] is not a table")
+    return section
+
+
+def _apply_section(cfg: Config, section: dict) -> Config:
+    known = {f.name for f in fields(Config)}
+    data = {**cfg.__dict__}
+    for k, v in section.items():
+        if k in known:
+            data[k] = v
+    return Config(**data)
+
+
+def resolve_config(
+    *,
+    review_dir: Path | None,
+    user_config_path: Path | None,
+) -> Config:
+    """Resolve a merged Config per §3.1 plus env overrides per §3.3.
+
+    Order (later overrides earlier):
+      1. Built-in defaults.
+      2. <review_dir>/config.toml.
+      3. <user_config_path>.
+      4. Env overrides.
+    """
+    cfg = Config()
+
+    if review_dir is not None:
+        review_toml = Path(review_dir) / "config.toml"
+        if review_toml.exists():
+            cfg = _apply_section(cfg, _load_toml_safe(review_toml))
+
+    if user_config_path is not None and user_config_path.exists():
+        cfg = _apply_section(cfg, _load_toml_safe(user_config_path))
+
+    for env_name, field_name in _ENV_STRING_KEYS.items():
+        env_val = os.environ.get(env_name)
+        if env_val is not None:
+            setattr(cfg, field_name, env_val)
+
+    return cfg
+
+
+def default_user_config_path() -> Path:
+    """Location of the user-level config (§3.1)."""
+    override = os.environ.get("SCRIPTORIUM_CONFIG")
+    if override:
+        return Path(override)
+    home = Path(os.environ.get("HOME", "")).expanduser()
+    return home / ".config" / "scriptorium" / "config.toml"
+
+
 def save_config_from_kv(path: Path, key: str, value: str) -> None:
     """Safe KV setter — defect-fix #3.
 
     Validates the key, coerces the value to the declared type, then writes
     TOML via the escaping writer. The value is data, not a command.
     """
-    config = load_config(path)
+    try:
+        config = load_config(path)
+    except tomllib.TOMLDecodeError as e:
+        raise ConfigCorruptError(f"{path}: {e}") from e
     field_map = {f.name: f for f in fields(Config)}
     if key not in field_map:
         raise KeyError(f"Unknown config key: {key!r}")
