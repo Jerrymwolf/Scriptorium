@@ -1,11 +1,11 @@
-"""BibTeX + RIS emitters from the corpus. Skips dropped papers."""
+"""BibTeX + RIS emitters from the corpus. Only exports kept papers."""
 from __future__ import annotations
 from scriptorium.paths import ReviewPaths
 from scriptorium.storage.corpus import load_corpus
 
 
 def _kept(paths: ReviewPaths) -> list[dict]:
-    return [r for r in load_corpus(paths) if r.get("status") != "dropped"]
+    return [r for r in load_corpus(paths) if r.get("status") == "kept"]
 
 
 def export_bibtex(paths: ReviewPaths) -> str:

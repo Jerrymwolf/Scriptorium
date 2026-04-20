@@ -119,12 +119,13 @@ def test_verify_on_unsupported_synthesis_exits_3(review_dir):
 def test_bib_emits_bibtex_for_kept_papers(review_dir):
     from scriptorium.paths import resolve_review_dir
     from scriptorium.sources.base import Paper
-    from scriptorium.storage.corpus import add_papers
+    from scriptorium.storage.corpus import add_papers, set_status
     paths = resolve_review_dir(explicit=review_dir)
     add_papers(paths, [Paper(
         paper_id="W1", source="openalex", title="Caffeine WM",
         authors=["Smith, J."], year=2019, doi="10.1/abc",
     )])
+    set_status(paths, "W1", "kept")
     rc, out, err = run(["bib", "--format", "bibtex"], review_dir)
     assert rc == 0, err
     assert "@article{W1" in out

@@ -11,6 +11,7 @@ def test_bibtex_emits_one_entry_per_kept_paper(review_dir):
               authors=["Smith, J.", "Lee, M."], year=2019, doi="10.1/abc",
               venue="J Exp Psy"),
     ])
+    set_status(paths, "W1", "kept")
     bib = export_bibtex(paths)
     assert "@article{W1" in bib
     assert "title = {Caffeine WM}" in bib
@@ -25,6 +26,7 @@ def test_ris_emits_well_formed_record(review_dir):
         Paper(paper_id="W1", source="openalex", title="Caffeine WM",
               authors=["Smith, J."], year=2019, doi="10.1/abc", venue="J Exp Psy"),
     ])
+    set_status(paths, "W1", "kept")
     ris = export_ris(paths)
     assert ris.startswith("TY  - JOUR")
     assert "TI  - Caffeine WM" in ris
@@ -42,6 +44,7 @@ def test_export_skips_dropped_papers(review_dir):
         Paper(paper_id="W2", source="openalex", title="Drop",
               authors=["B"], year=2020, doi="10.1/d"),
     ])
+    set_status(paths, "W1", "kept")
     set_status(paths, "W2", "dropped", reason="off-topic")
     bib = export_bibtex(paths)
     assert "Keep" in bib and "Drop" not in bib
