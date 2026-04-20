@@ -1,0 +1,19 @@
+{
+  "name": "scriptorium",
+  "version": "0.2.0",
+  "description": "Dual-runtime (Claude Code + Cowork) literature-review plugin in the style of Superpowers. Evidence-first, PRISMA audit trail, contradiction-aware.",
+  "author": {
+    "name": "Jeremiah Wolf",
+    "email": "jeremiahmwolf@gmail.com"
+  },
+  "keywords": [
+    "literature-review",
+    "research",
+    "phd",
+    "dissertation",
+    "prisma",
+    "superpowers"
+  ],
+  "homepage": "https://github.com/jeremiahwolf/scriptorium",
+  "license": "MIT"
+}
