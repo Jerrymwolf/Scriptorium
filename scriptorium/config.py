@@ -30,6 +30,9 @@ class Config:
     semantic_scholar_api_key: str = ""
     default_backend: str = "openalex"
     languages: list[str] = field(default_factory=lambda: ["en"])
+    obsidian_vault: str = ""
+    notebooklm_enabled: bool = False
+    notebooklm_prompt: bool = True
 
 
 def load_config(path: Path) -> Config:
