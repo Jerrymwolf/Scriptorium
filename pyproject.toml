@@ -3,8 +3,8 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "scriptorium"
-version = "0.2.0"
+name = "scriptorium-cli"
+version = "0.3.0"
 description = "Dual-runtime literature-review plugin for Claude Code and Cowork"
 requires-python = ">=3.11"
 dependencies = [
