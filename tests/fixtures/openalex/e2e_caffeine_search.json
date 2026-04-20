@@ -1,0 +1,11 @@
+{
+  "meta": {"count": 6, "page": 1},
+  "results": [
+    {"id":"https://openalex.org/W1","doi":"https://doi.org/10.1/a1","title":"Moderate caffeine improves working memory","publication_year":2019,"authorships":[{"author":{"display_name":"Alvarez, A"}}],"host_venue":{"display_name":"J Cog"},"abstract_inverted_index":{"Moderate":[0],"caffeine":[1],"improves":[2],"working":[3],"memory":[4]},"open_access":{"oa_url":null}},
+    {"id":"https://openalex.org/W2","doi":"https://doi.org/10.1/a2","title":"High doses of caffeine impair WM","publication_year":2020,"authorships":[{"author":{"display_name":"Brown, B"}}],"host_venue":{"display_name":"J Cog"},"abstract_inverted_index":{"High":[0],"doses":[1],"caffeine":[2],"impair":[3]},"open_access":{"oa_url":null}},
+    {"id":"https://openalex.org/W3","doi":"https://doi.org/10.1/a3","title":"Caffeine and rats","publication_year":2018,"authorships":[{"author":{"display_name":"Chen, C"}}],"host_venue":{"display_name":"Animal"},"abstract_inverted_index":{"rats":[0]},"open_access":{"oa_url":null}},
+    {"id":"https://openalex.org/W4","doi":"https://doi.org/10.1/a4","title":"Old caffeine review","publication_year":2010,"authorships":[{"author":{"display_name":"Davis, D"}}],"host_venue":{"display_name":"Old"},"abstract_inverted_index":{"caffeine":[0]},"open_access":{"oa_url":null}},
+    {"id":"https://openalex.org/W5","doi":"https://doi.org/10.1/a5","title":"Caffeine WM in students","publication_year":2022,"authorships":[{"author":{"display_name":"Evans, E"}}],"host_venue":{"display_name":"J Cog"},"abstract_inverted_index":{"caffeine":[0],"working":[1],"memory":[2],"students":[3]},"open_access":{"oa_url":null}},
+    {"id":"https://openalex.org/W6","doi":null,"title":"French paper sur la caféine","publication_year":2021,"authorships":[{"author":{"display_name":"Fournier, F"}}],"host_venue":{"display_name":"Fr"},"abstract_inverted_index":null,"open_access":{"oa_url":null},"language":"fr"}
+  ]
+}
