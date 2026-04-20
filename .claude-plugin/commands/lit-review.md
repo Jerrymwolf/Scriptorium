@@ -1,0 +1,16 @@
+---
+description: Run the full scriptorium lit-review pipeline on a research question. Delegates to the running-lit-review skill which handles search → screen → extract → synthesize → contradiction-check → audit → optional publishing. Usage: /lit-review "your research question" [--review-dir <path>].
+argument-hint: "<research question>" [--review-dir <path>]
+---
+
+# /lit-review
+
+You are starting an end-to-end literature review for: **{{ARGS}}**
+
+## Delegate to the skill
+
+1. Activate `using-scriptorium` — it runs the runtime probe and loads the state-adapter vocabulary.
+2. Activate `running-lit-review` with the research question above. The skill owns the full phase sequence (search → screen → extract → synthesize → contradiction-check → audit → optional publishing).
+3. If the user passed `--review-dir <path>` in the arguments, thread it through `using-scriptorium`'s state-adapter resolution so every subsequent `scriptorium` CLI call inherits it.
+
+Do not re-implement the pipeline here. The skill is the single source of truth so that Claude Code and Cowork execute the same review.
