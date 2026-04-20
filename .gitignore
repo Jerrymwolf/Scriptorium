@@ -11,6 +11,10 @@ node_modules/
 pdfs/
 extracts/
 
+# Exception: committed test fixture PDFs
+!tests/fixtures/pdfs/
+!tests/fixtures/pdfs/**
+
 # Python build and packaging
 dist/
 build/

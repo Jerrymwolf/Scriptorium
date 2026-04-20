@@ -9,6 +9,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture
 def fixtures_dir() -> Path:
+    """Path to the shared test fixtures directory."""
     return FIXTURES
 
 
@@ -24,9 +25,11 @@ def review_dir(tmp_path: Path) -> Path:
 
 
 def load_fixture(category: str, name: str) -> dict:
+    """Load a JSON fixture by category and name."""
     return json.loads((FIXTURES / category / f"{name}.json").read_text())
 
 
 @pytest.fixture
 def fixture_loader():
+    """Fixture providing the load_fixture function."""
     return load_fixture
