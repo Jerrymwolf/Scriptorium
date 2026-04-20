@@ -18,7 +18,7 @@ import json
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Callable, Sequence, TextIO
+from typing import Callable, Sequence, TextIO
 
 from scriptorium import __version__
 from scriptorium.config import load_config, save_config_from_kv
@@ -38,6 +38,11 @@ from scriptorium.storage.evidence import (
 
 
 class CLIError(Exception):
+    """User-visible CLI error.
+
+    ``exit_code`` follows the conventions documented in the module docstring.
+    """
+
     def __init__(self, message: str, exit_code: int = 2):
         super().__init__(message)
         self.exit_code = exit_code
@@ -45,6 +50,9 @@ class CLIError(Exception):
 
 def _config_path(paths: ReviewPaths) -> Path:
     return paths.root / "config.toml"
+
+
+# --- handlers ---
 
 
 def cmd_version(args, paths, stdout, stderr, stdin) -> int:
@@ -309,6 +317,9 @@ def cmd_config_set(args, paths, stdout, stderr, stdin) -> int:
     return 0
 
 
+# --- dispatch ---
+
+
 _Handler = Callable[
     [argparse.Namespace, ReviewPaths, TextIO, TextIO, TextIO], int
 ]
@@ -343,10 +354,6 @@ def _build_parser() -> argparse.ArgumentParser:
             "Run the same subcommands from Claude Code; Cowork uses "
             "platform MCPs for the same workflow."
         ),
-    )
-    p.add_argument(
-        "--review-dir",
-        help="Override SCRIPTORIUM_REVIEW_DIR (where corpus, evidence, audit live)",
     )
     sub = p.add_subparsers(dest="command", required=True)
 
@@ -477,8 +484,7 @@ def main(
         return int(e.code) if isinstance(e.code, int) else 2
 
     # Merge review_dir from pre-parser into ns
-    if pre_ns.review_dir is not None:
-        ns.review_dir = pre_ns.review_dir
+    ns.review_dir = pre_ns.review_dir
 
     explicit = Path(ns.review_dir) if ns.review_dir else None
     paths = resolve_review_dir(explicit=explicit, create=True)
