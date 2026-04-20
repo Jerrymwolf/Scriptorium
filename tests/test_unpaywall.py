@@ -33,3 +33,7 @@ async def test_email_is_required_param():
     await c.find_pdf("10.1/x")
     assert "email=test%40example.com" in str(respx.calls.last.request.url) or \
            "email=test@example.com" in str(respx.calls.last.request.url)
+
+def test_email_required_raises_valueerror():
+    with pytest.raises(ValueError, match="contact email"):
+        UnpaywallClient(email="")
