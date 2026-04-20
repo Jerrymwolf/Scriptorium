@@ -21,7 +21,7 @@ def test_manifest_has_required_fields():
     for key in ("name", "version", "description", "author"):
         assert key in data, f"missing key: {key}"
     assert data["name"] == "scriptorium"
-    assert data["version"].startswith("0.2")
+    assert data["version"].startswith("0.3")
 
 
 def test_manifest_has_no_mcp_servers_key():
