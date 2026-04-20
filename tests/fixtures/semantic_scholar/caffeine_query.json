@@ -1,0 +1,15 @@
+{
+  "total": 1,
+  "data": [
+    {
+      "paperId": "abc123def456",
+      "title": "Caffeine and cognition: a review",
+      "year": 2018,
+      "authors": [{"name": "John Roe"}, {"name": "Mary Foe"}],
+      "venue": "Annual Review of Psychology",
+      "externalIds": {"DOI": "10.1146/annurev-psych-010418"},
+      "abstract": "We review caffeine effects on cognition.",
+      "openAccessPdf": {"url": "https://example.org/ss_oa.pdf"}
+    }
+  ]
+}
