@@ -15,7 +15,8 @@ class OpenAlexAdapter(SourceAdapter):
 
     async def _get(self, url: str, params: dict | None = None) -> dict:
         params = dict(params or {})
-        params["mailto"] = self.mailto
+        if self.mailto:
+            params["mailto"] = self.mailto
         if self._client:
             r = await self._client.get(url, params=params)
         else:

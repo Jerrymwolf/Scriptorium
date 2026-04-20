@@ -38,3 +38,13 @@ def test_set_status_updates_row(review_dir):
     row = load_corpus(paths)[0]
     assert row["status"] == "kept"
     assert row["reason"] == "meets criteria"
+
+def test_doi_paper_and_nodoi_paper_same_title_are_not_deduped(review_dir):
+    """Papers with/without doi having same title are intentionally separate rows.
+    DOI is the primary dedup key; title dedup only applies to no-doi papers."""
+    paths = resolve_review_dir(explicit=review_dir)
+    a = _p("W1", doi="10.1/abc", title="Caffeine and WM")
+    b = _p("S1", doi=None, title="Caffeine and WM", source="semantic_scholar")
+    added = add_papers(paths, [a, b])
+    assert added == 2
+    assert len(load_corpus(paths)) == 2
