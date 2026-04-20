@@ -1,0 +1,28 @@
+{
+  "meta": {"count": 2, "page": 1},
+  "results": [
+    {
+      "id": "https://openalex.org/W2741809807",
+      "doi": "https://doi.org/10.1037/xlm0000123",
+      "title": "Caffeine and working-memory accuracy: a meta-analysis",
+      "publication_year": 2019,
+      "authorships": [
+        {"author": {"display_name": "Jane Smith"}},
+        {"author": {"display_name": "Mark Lee"}}
+      ],
+      "host_venue": {"display_name": "Journal of Experimental Psychology"},
+      "abstract_inverted_index": {"Caffeine": [0], "improves": [1], "accuracy": [2]},
+      "open_access": {"oa_url": "https://example.org/openalex_oa.pdf"}
+    },
+    {
+      "id": "https://openalex.org/W3000000001",
+      "doi": null,
+      "title": "Sleep deprivation reverses caffeine WM gains",
+      "publication_year": 2021,
+      "authorships": [{"author": {"display_name": "Alice Doe"}}],
+      "host_venue": {"display_name": "Cognition"},
+      "abstract_inverted_index": null,
+      "open_access": {"oa_url": null}
+    }
+  ]
+}
