@@ -1,0 +1,42 @@
+---
+name: lit-synthesizing
+description: Use when the user asks to draft a literature review section, write a synthesis, or summarize the evidence. Produces synthesis.md with every claim backed by [paper_id:locator] tokens and runs a mandatory cite-check before committing.
+---
+
+# Literature Synthesizing
+
+Input: `evidence.jsonl` (claims with paper+locator). Output: `synthesis.md` where every sentence is either evidence-backed or deliberately meta (headings, transitions).
+
+## Citation grammar
+
+All citations use the token `[paper_id:locator]`. The locator format is defined in `lit-extracting`: `page:N`, `page:N-M`, `sec:<name>`, `abstract`, `L<n>-L<m>`. **Never** write `[1]`, `[2]`, or numbered-citation style — those are Consensus's grammar and are stripped at search time. If a sentence needs multiple citations, chain the tokens: `[W1:page:4][W2:sec:Discussion]`.
+
+## Workflow
+
+1. **Group evidence by concept.** Read `evidence.jsonl`; group rows by `concept`. For each concept, you have a set of positive, negative, neutral, and mixed rows.
+2. **Draft one paragraph per concept.** Each paragraph names the concept, states the consensus (or lack of it), and cites the specific evidence. If directions disagree on a concept, write that disagreement into the paragraph — do **not** average.
+3. **Write transitions.** Transitions are allowed to be uncited (they don't make empirical claims). Keep them short.
+4. **Run the contradiction check** (hand off to `lit-contradiction-check`) before the final step; add its findings as a "Where authors disagree" subsection.
+5. **Mandatory final step — cite-check before commit:**
+
+   > Parse each sentence in `synthesis.md` for `[paper_id:locator]` tokens; confirm each tuple exists in the evidence store. Strip (strict) or flag `[UNSUPPORTED]` (lenient) any failure.
+
+   - Strict mode removes unsupported sentences and dangling citation tokens entirely.
+   - Lenient mode appends `[UNSUPPORTED]` after the sentence so the human reviewer can decide.
+   - Default mode is strict for dissertation work, lenient for exploratory drafts.
+
+## Runtime specifics
+
+**Claude Code:** after you draft `synthesis.md`, run `scriptorium verify --synthesis synthesis.md`. Exit 0 = clean; exit 3 = unsupported sentences or missing citations found. The CC PostToolUse hook runs the same check automatically — it is belt-and-suspenders; your skill step is the discipline.
+
+**Cowork:** there is no hook and no `scriptorium verify`. You must walk each sentence in-prose: for every `[paper_id:locator]` token, confirm it exists in the `evidence` note of the state adapter. If a token is missing, strip or flag it yourself.
+
+## What not to do
+
+- Do not invent paper ids or locators. "I think this is in Smith (2020)" is not a citation.
+- Do not merge contradictory evidence into a single consensus sentence to look cleaner. Name the disagreement.
+- Do not omit the cite-check. "I'll just scan visually" is how unsupported claims ship into dissertations.
+
+## Hand-off
+
+After the cite-check passes, report: "Synthesis written; N sentences, M citations, 0 unsupported." Hand off to `lit-contradiction-check` (if not already run) or to the user for review.
