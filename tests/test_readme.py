@@ -2,9 +2,10 @@
 """README content test — locks in the Superpowers credit, the install
 surface, the dual-runtime framing, and the defect-fix #8 anti-pattern.
 """
+import os
 from pathlib import Path
 
-README = Path("README.md")
+README = Path(__file__).parent.parent / "README.md"
 
 
 def test_readme_exists():
@@ -66,7 +67,6 @@ def test_test_and_license_sections_present():
 
 
 def test_install_plugin_script_exists_and_executable():
-    script = Path("scripts/install_plugin.sh")
+    script = Path(__file__).parent.parent / "scripts/install_plugin.sh"
     assert script.exists()
-    import os
     assert os.access(script, os.X_OK), "install_plugin.sh not executable"

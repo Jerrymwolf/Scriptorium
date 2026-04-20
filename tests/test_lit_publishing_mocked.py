@@ -2,7 +2,7 @@
 """Behavioral content test for lit-publishing skill."""
 from pathlib import Path
 
-SKILL = Path(".claude-plugin/skills/lit-publishing/SKILL.md")
+SKILL = Path(__file__).parent.parent / ".claude-plugin/skills/lit-publishing/SKILL.md"
 
 
 def test_skill_exists():

@@ -17,7 +17,7 @@ import respx
 
 from scriptorium.cli import main as cli_main
 
-FIXTURE = Path("tests/fixtures/openalex/e2e_caffeine_search.json")
+FIXTURE = Path(__file__).parent / "fixtures/openalex/e2e_caffeine_search.json"
 
 
 def _run(argv: list[str], *, review_dir: Path, stdin: str = "") -> tuple[int, str, str]:
@@ -32,7 +32,7 @@ def _run(argv: list[str], *, review_dir: Path, stdin: str = "") -> tuple[int, st
     return code, out.getvalue(), err.getvalue()
 
 
-def test_caffeine_pipeline_end_to_end(review_dir, tmp_path):
+def test_caffeine_pipeline_end_to_end(review_dir):
     fixture_payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
 
     with respx.mock(assert_all_called=False) as mock:

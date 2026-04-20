@@ -2,7 +2,7 @@
 """Content test for the Cowork smoke checklist."""
 from pathlib import Path
 
-DOC = Path("docs/cowork-smoke.md")
+DOC = Path(__file__).parent.parent / "docs/cowork-smoke.md"
 
 
 def test_doc_exists():
