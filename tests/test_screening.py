@@ -45,3 +45,9 @@ def test_keep_when_all_pass():
     )
     assert res.keep is True
     assert res.reason == "all criteria pass"
+
+
+def test_undated_paper_fails_year_min_but_passes_year_max():
+    """year=None fails a floor bound but passes a ceiling bound (intentional asymmetry)."""
+    assert screen(_p(year=None), ScreenCriteria(year_min=2015)).keep is False
+    assert screen(_p(year=None), ScreenCriteria(year_max=2020)).keep is True

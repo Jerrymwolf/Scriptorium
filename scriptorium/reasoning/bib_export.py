@@ -19,7 +19,7 @@ def export_bibtex(paths: ReviewPaths) -> str:
             fields.append(f"  journal = {{{r['venue']}}}")
         if r.get("doi"):
             fields.append(f"  doi = {{{r['doi']}}}")
-        chunks.append("@article{" + r["paper_id"] + ",\n" + ",\n".join(fields) + "\n}\n")
+        chunks.append("@article{" + (r.get("paper_id") or "unknown") + ",\n" + ",\n".join(fields) + "\n}\n")
     out = "\n".join(chunks)
     paths.bib.mkdir(parents=True, exist_ok=True)
     (paths.bib / "export.bib").write_text(out, encoding="utf-8")
