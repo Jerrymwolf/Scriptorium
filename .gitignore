@@ -10,3 +10,11 @@ node_modules/
 # Per-review state (excluded by default; students can override per-repo)
 pdfs/
 extracts/
+
+# Python build and packaging
+dist/
+build/
+*.egg-info/
+
+# Testing
+.pytest_cache/
