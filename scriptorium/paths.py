@@ -1,5 +1,13 @@
-"""Per-review path resolution. State lives next to the dissertation."""
+"""Per-review path resolution and canonical file names.
+
+v0.3 extends v0.2's `ReviewPaths` with overview, contradictions, paper stubs,
+references export, and a review lock. Resolution follows §4.1 of the design
+spec: absolute path is respected; relative path is joined against `vault_root`
+when set, otherwise against the cwd; `SCRIPTORIUM_REVIEW_DIR` is the fallback
+when `explicit` is None.
+"""
 from __future__ import annotations
+
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,6 +39,26 @@ class ReviewPaths:
         return self.root / "synthesis.md"
 
     @property
+    def contradictions(self) -> Path:
+        return self.root / "contradictions.md"
+
+    @property
+    def overview(self) -> Path:
+        return self.root / "overview.md"
+
+    @property
+    def overview_archive(self) -> Path:
+        return self.root / "overview-archive"
+
+    @property
+    def references_bib(self) -> Path:
+        return self.root / "references.bib"
+
+    @property
+    def papers(self) -> Path:
+        return self.root / "papers"
+
+    @property
     def pdfs(self) -> Path:
         return self.root / "pdfs"
 
@@ -46,17 +74,39 @@ class ReviewPaths:
     def bib(self) -> Path:
         return self.root / "bib"
 
+    @property
+    def lock(self) -> Path:
+        return self.root / ".scriptorium.lock"
+
 
 def resolve_review_dir(
-    explicit: Optional[Path] = None, create: bool = False
+    explicit: Optional[Path] = None,
+    *,
+    vault_root: Optional[Path] = None,
+    cwd: Optional[Path] = None,
+    create: bool = False,
 ) -> ReviewPaths:
+    """Resolve the review directory per §4.1.
+
+    - Absolute `explicit` is used as-is (after resolve).
+    - Relative `explicit` joins to `vault_root` when given, else `cwd`.
+    - No `explicit` falls back to `SCRIPTORIUM_REVIEW_DIR` then `cwd`.
+    """
+    base_cwd = Path(cwd) if cwd is not None else Path.cwd()
+
     if explicit is not None:
-        root = Path(explicit)
-    elif env := os.environ.get("SCRIPTORIUM_REVIEW_DIR"):
-        root = Path(env)
+        p = Path(explicit)
+        if p.is_absolute():
+            root = p.resolve(strict=False)
+        elif vault_root is not None:
+            root = (Path(vault_root) / p).resolve(strict=False)
+        else:
+            root = (base_cwd / p).resolve(strict=False)
     else:
-        root = Path.cwd()
+        env = os.environ.get("SCRIPTORIUM_REVIEW_DIR")
+        root = Path(env).resolve(strict=False) if env else base_cwd.resolve(strict=False)
+
     if create:
-        for sub in ("pdfs", "extracts", "outputs", "bib"):
+        for sub in ("pdfs", "extracts", "outputs", "bib", "papers"):
             (root / sub).mkdir(parents=True, exist_ok=True)
     return ReviewPaths(root=root)

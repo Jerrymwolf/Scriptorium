@@ -487,7 +487,7 @@ def main(
     ns.review_dir = pre_ns.review_dir
 
     explicit = Path(ns.review_dir) if ns.review_dir else None
-    paths = resolve_review_dir(explicit=explicit, create=True)
+    paths = resolve_review_dir(explicit=explicit, vault_root=None, cwd=None, create=True)
 
     handler = _HANDLERS.get((ns.command, getattr(ns, "subcommand", None)))
     if handler is None:
