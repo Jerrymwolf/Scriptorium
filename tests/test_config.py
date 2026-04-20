@@ -75,3 +75,12 @@ def test_save_config_from_kv_is_injection_safe(tmp_path):
     assert "evil_key" not in data
     assert "evil_key" not in data.get("scriptorium", {})
     assert data["scriptorium"]["default_model"] == payload
+
+
+def test_save_config_from_kv_escapes_del_character(tmp_path):
+    path = tmp_path / "config.toml"
+    save_config(path, Config())
+    payload = "value\x7fwith-del"
+    save_config_from_kv(path, "default_model", payload)
+    cfg = load_config(path)
+    assert cfg.default_model == payload

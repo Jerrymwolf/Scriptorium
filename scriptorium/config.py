@@ -56,7 +56,7 @@ def _toml_escape_str(v: str) -> str:
             out.append("\\r")
         elif ch == "\t":
             out.append("\\t")
-        elif ord(ch) < 0x20:
+        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
             out.append(f"\\u{ord(ch):04X}")
         else:
             out.append(ch)
