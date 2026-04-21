@@ -6,7 +6,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Status: beta](https://img.shields.io/badge/status-beta%20v0.3-blue.svg)](#status)
 
-You have 200 candidate papers, a deadline, and no defensible record of how you got here. When your committee asks *"how did you search?"* — the honest answer won't reconstruct.
+You have 200 candidate papers, a deadline, and no defensible record of how you got here. When your committee asks *"how did you find these sources"* and you've honestly forgotten. 
 
 Scriptorium turns the middle third of your lit review — **search through synthesis** — into a disciplined, auditable workflow inside the AI assistant you already use. It produces a committee-defensible record as you go: every claim locator-cited to a paper and page, every search and screening decision logged, contradictions between papers named rather than averaged.
 
