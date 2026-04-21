@@ -317,6 +317,18 @@ def cmd_config_set(args, paths, stdout, stderr, stdin) -> int:
     return 0
 
 
+def cmd_init(args, paths, stdout, stderr, stdin) -> int:
+    from scriptorium.setup_flow import InitArgs, run_init
+    return run_init(
+        InitArgs(
+            notebooklm=args.notebooklm,
+            skip_notebooklm=args.skip_notebooklm,
+            vault=Path(args.vault) if args.vault else None,
+        ),
+        stdout, stderr, stdin,
+    )
+
+
 def cmd_doctor(args, paths, stdout, stderr, stdin) -> int:
     from scriptorium.doctor import run_doctor
     return run_doctor(stdout)
@@ -506,6 +518,7 @@ _HANDLERS: dict[tuple[str, str | None], _Handler] = {
     ("regenerate-overview", None): cmd_regenerate_overview,
     ("migrate-review", None): cmd_migrate_review,
     ("doctor", None): cmd_doctor,
+    ("init", None): cmd_init,
 }
 
 
@@ -621,6 +634,11 @@ def _build_parser() -> argparse.ArgumentParser:
     pcg_set.add_argument("value")
 
     sub.add_parser("doctor", help="Diagnose scriptorium installation")
+
+    pi = sub.add_parser("init", help="Terminal setup flow (see /scriptorium-setup)")
+    pi.add_argument("--notebooklm", action="store_true")
+    pi.add_argument("--skip-notebooklm", action="store_true")
+    pi.add_argument("--vault", default=None)
 
     pm = sub.add_parser("migrate-review", help="Migrate a legacy review to v0.3")
     pm.add_argument("review_dir_pos", metavar="review-dir")
