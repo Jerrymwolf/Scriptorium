@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from scriptorium import nlm as nlm  # noqa: F401 — rebindable for tests
+from scriptorium.storage.audit import AuditEntry, append_audit
+from scriptorium.paths import ReviewPaths
 
 
 VALID_SOURCE_TOKENS = ("overview", "synthesis", "contradictions", "evidence", "pdfs", "stubs")
@@ -205,7 +207,15 @@ def _artifact_for_generate_flag(flag: str) -> list[tuple[str, str]]:
     return [_ARTIFACT_DISPATCH[flag]]
 
 
-def run_publish(args: PublishArgs, *, now_iso: str) -> PublishOutcome:
+def run_publish(args: PublishArgs, *, now_iso: str, partial_state: Optional[dict] = None) -> PublishOutcome:
+    if partial_state is not None:
+        state = partial_state
+    else:
+        state = {}
+    state.setdefault("uploaded_names", [])
+    state.setdefault("notebook_id", None)
+    state.setdefault("notebook_url", None)
+
     ensure_required_files(review_dir=args.review_dir, sources=args.sources)
 
     try:
@@ -229,6 +239,9 @@ def run_publish(args: PublishArgs, *, now_iso: str) -> PublishOutcome:
             symbol="E_NLM_CREATE",
         ) from e
 
+    state["notebook_id"] = created.notebook_id
+    state["notebook_url"] = created.notebook_url
+
     source_files = collect_source_files(review_dir=args.review_dir, sources=args.sources)
     uploaded: list[str] = []
     warnings: list[str] = []
@@ -238,6 +251,9 @@ def run_publish(args: PublishArgs, *, now_iso: str) -> PublishOutcome:
         except Exception as e:
             stderr_val = getattr(e, "stderr", "")
             rc_val = getattr(e, "returncode", "?")
+            state["failing_command"] = f"nlm source add {created.notebook_id} --file {path}"
+            state["exit_code"] = getattr(e, "returncode", None)
+            state["stderr"] = str(getattr(e, "stderr", e))
             raise PublishError(
                 f"upload failed for {path.name} ({rc_val}). {len(uploaded)} "
                 f"sources uploaded successfully before failure. Notebook "
@@ -246,6 +262,7 @@ def run_publish(args: PublishArgs, *, now_iso: str) -> PublishOutcome:
                 symbol="E_NLM_UPLOAD",
             ) from e
         uploaded.append(path.name)
+        state["uploaded_names"].append(path.name)
         if i + 1 < len(source_files):
             time.sleep(1)
 
@@ -271,3 +288,86 @@ def run_publish(args: PublishArgs, *, now_iso: str) -> PublishOutcome:
         artifact_ids=artifact_ids,
         warnings=warnings,
     )
+
+
+def has_prior_publish(audit_md: Path, notebook_name: str) -> bool:
+    """Return True iff audit.md records a prior publish to `notebook_name`."""
+    if not audit_md.exists():
+        return False
+    text = audit_md.read_text(encoding="utf-8")
+    marker = f'**Notebook:** "{notebook_name}"'
+    return marker in text
+
+
+def append_publish_audit(
+    *,
+    review_dir: Path,
+    outcome: "PublishOutcome",
+    attempted_sources: list[Path],
+    status: str,
+    triggered_by: str,
+    generate_flag: Optional[str],
+    notebook_name: str,
+) -> None:
+    paths = ReviewPaths(root=review_dir)
+    uploaded = [{"name": p.name, "size": p.stat().st_size} for p in attempted_sources if p.name in outcome.uploaded_sources]
+    details = {
+        "notebook_name": notebook_name,
+        "notebook_id": outcome.notebook_id,
+        "notebook_url": outcome.notebook_url,
+        "triggered_by": triggered_by,
+        "attempted_sources": [{"name": p.name, "size": p.stat().st_size} for p in attempted_sources],
+        "uploaded_sources": uploaded,
+        "uploaded_total_bytes": sum(u["size"] for u in uploaded),
+        "artifact_ids": outcome.artifact_ids,
+        "generate": generate_flag,
+    }
+    append_audit(paths, AuditEntry(phase="publishing", action="notebook.publish", status=status, details=details))
+    _append_publish_md(paths.audit_md, outcome, attempted_sources, status, notebook_name)
+
+
+def _append_publish_md(audit_md: Path, outcome: "PublishOutcome", attempted: list[Path], status: str, notebook_name: str) -> None:
+    from datetime import datetime, timezone
+    if not audit_md.exists():
+        audit_md.write_text("# PRISMA Audit Trail\n\n")
+    text = audit_md.read_text(encoding="utf-8")
+    if "## Publishing" not in text:
+        audit_md.write_text(text + "## Publishing\n\n", encoding="utf-8")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    lines = [
+        f"\n### {now} — NotebookLM\n",
+        f"**Status:** {status}",
+        f'**Notebook:** "{notebook_name}" (id: `{outcome.notebook_id}`)',
+        f"**URL:** {outcome.notebook_url}",
+        "",
+    ]
+    with audit_md.open("a", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
+def append_partial_audit(
+    *,
+    review_dir: Path,
+    attempted_sources: list[Path],
+    uploaded_names: list[str],
+    notebook_id: Optional[str],
+    notebook_url: Optional[str],
+    notebook_name: Optional[str],
+    failing_command: str,
+    exit_code: Optional[int],
+    stderr_truncated: str,
+    symbol: str,
+) -> None:
+    paths = ReviewPaths(root=review_dir)
+    details = {
+        "notebook_name": notebook_name,
+        "notebook_id": notebook_id,
+        "notebook_url": notebook_url,
+        "attempted_sources": [{"name": str(p.relative_to(review_dir))} for p in attempted_sources],
+        "uploaded_sources": [{"name": n} for n in uploaded_names],
+        "failing_command": failing_command,
+        "captured_exit_code": exit_code,
+        "captured_stderr": stderr_truncated[:4096],
+        "symbol": symbol,
+    }
+    append_audit(paths, AuditEntry(phase="publishing", action="notebook.publish.partial", status="partial", details=details))
