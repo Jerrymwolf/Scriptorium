@@ -22,3 +22,11 @@ build/
 
 # Testing
 .pytest_cache/
+
+# Finder duplicates and legacy loose files
+*\ 2.md
+*\ 2.py
+*\ 2/
+README_proposed.md
+scriptorium-v0.2.1-spec.md
+docs/superpowers/

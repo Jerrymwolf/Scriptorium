@@ -1,0 +1,1 @@
+../../.claude-plugin/commands/lit-mindmap.md
