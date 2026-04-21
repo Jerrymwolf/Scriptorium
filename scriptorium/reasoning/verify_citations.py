@@ -11,8 +11,7 @@ from dataclasses import dataclass, field
 import re
 from scriptorium.paths import ReviewPaths
 from scriptorium.storage.evidence import load_evidence
-
-_CITE = re.compile(r"\[([A-Za-z0-9_.\-]+):([^\]]+)\]")
+from scriptorium.citations import parse_citations as _parse_citations
 
 # Abbreviation allow-list: tokens ending in '.' that should NOT trigger a split.
 _ABBREVS = {
@@ -22,7 +21,8 @@ _ABBREVS = {
 
 
 def parse_citations(text: str) -> list[tuple[str, str]]:
-    return [(m.group(1), m.group(2)) for m in _CITE.finditer(text)]
+    """Back-compat shim: returns (paper_id, locator) tuples."""
+    return [(c.paper_id, c.locator) for c in _parse_citations(text)]
 
 
 def _ends_with_abbrev(buf: str) -> bool:
