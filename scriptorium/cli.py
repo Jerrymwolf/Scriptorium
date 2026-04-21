@@ -317,6 +317,30 @@ def cmd_config_set(args, paths, stdout, stderr, stdin) -> int:
     return 0
 
 
+def cmd_migrate_review(args, paths, stdout, stderr, stdin) -> int:
+    import json as _json
+    from scriptorium.errors import EXIT_CODES, ScriptoriumError
+    from scriptorium.lock import ReviewLockHeld
+    from scriptorium.migrate import migrate_review
+    from scriptorium.paths import resolve_review_dir
+    rp = resolve_review_dir(
+        explicit=Path(args.review_dir_pos), vault_root=None, cwd=None, create=False,
+    )
+    try:
+        res = migrate_review(rp, dry_run=args.dry_run)
+    except ReviewLockHeld as e:
+        stderr.write(f"scriptorium migrate-review: {e}\n")
+        return EXIT_CODES["E_LOCKED"]
+    except ScriptoriumError as e:
+        stderr.write(f"scriptorium migrate-review: {e}\n")
+        return EXIT_CODES[e.symbol]
+    if args.json_mode:
+        stdout.write(_json.dumps(res.to_dict()) + "\n")
+    else:
+        stdout.write(f"changed: {res.changed_files}\n")
+    return 0
+
+
 def cmd_regenerate_overview(args, paths, stdout, stderr, stdin) -> int:
     import json as _json
     from scriptorium.config import default_user_config_path, resolve_config
@@ -475,6 +499,7 @@ _HANDLERS: dict[tuple[str, str | None], _Handler] = {
     ("config", "set"): cmd_config_set,
     ("publish", None): cmd_publish,
     ("regenerate-overview", None): cmd_regenerate_overview,
+    ("migrate-review", None): cmd_migrate_review,
 }
 
 
@@ -588,6 +613,11 @@ def _build_parser() -> argparse.ArgumentParser:
     pcg_set = pcgs.add_parser("set")
     pcg_set.add_argument("key")
     pcg_set.add_argument("value")
+
+    pm = sub.add_parser("migrate-review", help="Migrate a legacy review to v0.3")
+    pm.add_argument("review_dir_pos", metavar="review-dir")
+    pm.add_argument("--dry-run", action="store_true")
+    pm.add_argument("--json", dest="json_mode", action="store_true")
 
     po = sub.add_parser("regenerate-overview", help="Rebuild overview.md")
     po.add_argument("review_dir_pos", metavar="review-dir")
