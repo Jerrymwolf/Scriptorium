@@ -40,3 +40,7 @@ Append: `audit append --phase contradiction-check --action pairs.found --details
 ## Hand-off
 
 Insert the named-camps paragraphs into `synthesis.md` under a "Where authors disagree" heading; re-run the cite-check in `lit-synthesizing`.
+
+## v0.3 additions
+
+Emit citations as `[[paper_id#p-N]]`. Frontmatter mirrors synthesis.md.

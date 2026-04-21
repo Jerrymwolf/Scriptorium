@@ -72,3 +72,7 @@ The synthesis layer reads these when verifying `[paper_id:locator]` tokens. Inve
 ## Hand-off
 
 After every kept paper is extracted, report "N papers extracted, M evidence rows written" and hand off to `lit-synthesizing`.
+
+## v0.3 additions
+
+Full-text source enum: `user_pdf | unpaywall | arxiv | pmc | abstract_only`. Paper stubs require this field in frontmatter (`full_text_source`).

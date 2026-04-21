@@ -40,3 +40,8 @@ All citations use the token `[paper_id:locator]`. The locator format is defined 
 ## Hand-off
 
 After the cite-check passes, report: "Synthesis written; N sentences, M citations, 0 unsupported." Hand off to `lit-contradiction-check` (if not already run) or to the user for review.
+
+## v0.3 additions
+
+- New citations use `[[paper_id#p-N]]`. The verifier still accepts legacy `[paper_id:loc]`.
+- Review artifacts carry frontmatter with `schema_version: scriptorium.review_file.v1`.

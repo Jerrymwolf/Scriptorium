@@ -84,3 +84,9 @@ CC enforces these via dataclasses in the CLI (`scriptorium evidence add` accepts
 3. Brief the user in one sentence: "CC mode — using the `scriptorium` CLI and the filesystem at `<cwd>`." *or* "Cowork mode — using Consensus + PubMed for search, NotebookLM notebook `<id>` for state."
 4. Ask for the research question if they haven't provided one.
 5. Hand off to the phase-appropriate skill.
+
+## v0.3 additions
+
+- Setting `obsidian_vault` enables native Obsidian output: paper stubs to `<vault>/papers/`, Dataview queries to `<vault>/scriptorium-queries.md`.
+- Publishing route is `scriptorium publish --review-dir <path> --generate <audio|deck|mindmap|video|all>`.
+- Cowork degradation block is rendered automatically when `SCRIPTORIUM_COWORK` is set.

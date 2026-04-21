@@ -58,3 +58,23 @@ End with a single question: "Do you want a podcast / slide deck / infographic / 
 | Verify | `scriptorium verify --synthesis <path>` (exit 3 on fail) | In-skill cite-check per `lit-synthesizing` step 5 |
 | Audit append | `scriptorium audit append --phase <p> --action <a> --details '<json>'` | Append JSON line to `audit-jsonl` note via state adapter |
 | Export | `scriptorium bib --format bibtex` + `--format ris` | Ask user which format; generate via skill prose |
+
+## v0.3 additions
+
+After cite-check passes, call:
+
+```bash
+scriptorium regenerate-overview <review-dir>
+```
+
+If conditions in §9.1 are met, show this prompt:
+
+```
+NotebookLM artifact? (skip default)
+  audio
+  deck
+  mindmap
+  skip
+```
+
+Route non-`skip` selections to `scriptorium publish --review-dir <path> --generate <choice>`.

@@ -43,3 +43,9 @@ Present this as a short numbered list — it is the skeleton of a PRISMA 2020 fl
 ## Appending entries from other skills
 
 Every lit-* skill appends its own entries; this skill is read-focused. If the user asks "log this", call `scriptorium audit append --phase <phase> --action <verb.noun> --details '{...}'` in CC, or write to the state adapter in Cowork.
+
+## v0.3 additions
+
+- `audit.jsonl` rows have a `status` enum (`success|warning|failure|partial|skipped`).
+- `audit.md` gains a `## Publishing` section for NotebookLM events; each event has `### <timestamp> — NotebookLM`, status, destination, URL, and attempted/uploaded manifests.
+- The same events appear as `publishing` rows in `audit.jsonl` for tools.

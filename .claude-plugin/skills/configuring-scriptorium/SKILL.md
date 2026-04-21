@@ -57,3 +57,12 @@ Then: "Stored in `<path>` (CC) or `<note>` (Cowork). Run `scriptorium config get
 - **User pastes a multi-line value.** Reject gently ("config values are single-line"); ask again.
 - **`scriptorium config set` exits non-zero.** Surface stderr verbatim and ask the user to retry or skip.
 - **Cowork note write fails.** Fall back to session-only: tell the user the setting will not persist to the next session.
+
+## v0.3 additions
+
+New config keys:
+- `obsidian_vault` — path to Obsidian vault root; enables vault-relative paths.
+- `notebooklm_enabled` — boolean; set `true` only after `nlm doctor` succeeds.
+- `notebooklm_prompt` — boolean; set `false` to suppress the end-of-review prompt.
+
+In Cowork mode there is no local config file. Store config in a user-memory note named `scriptorium-config`, TOML-shaped.
