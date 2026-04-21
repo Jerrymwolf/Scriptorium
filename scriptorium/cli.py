@@ -317,6 +317,65 @@ def cmd_config_set(args, paths, stdout, stderr, stdin) -> int:
     return 0
 
 
+def cmd_publish(args, paths, stdout, stderr, stdin) -> int:
+    import json
+    from datetime import datetime, timezone
+    from scriptorium.cowork import is_cowork_mode
+    from scriptorium.errors import EXIT_CODES
+    from scriptorium.lock import ReviewLock, ReviewLockHeld
+    from scriptorium.nlm import NlmTimeoutError
+    from scriptorium.publish import (
+        PublishError, PublishUsageError, build_publish_args,
+        render_cowork_block, run_publish,
+    )
+    try:
+        pa = build_publish_args(
+            review_dir=paths.root,
+            notebook=args.notebook,
+            generate=args.generate,
+            sources_raw=args.sources,
+            yes=args.yes,
+            json_mode=args.json_mode,
+        )
+    except PublishUsageError as e:
+        stderr.write(f"scriptorium publish: {e}\n")
+        return EXIT_CODES[e.symbol]
+    except ValueError as e:
+        stderr.write(
+            f"scriptorium publish: cannot derive notebook name from "
+            f"'{paths.root.name}'. Pass --notebook \"<name>\" explicitly.\n"
+        )
+        return EXIT_CODES["E_NOTEBOOK_NAME"]
+
+    if is_cowork_mode():
+        stdout.write(render_cowork_block(
+            notebook_name=pa.notebook, review_dir=pa.review_dir, sources=pa.sources,
+        ))
+        return 0
+
+    try:
+        with ReviewLock(paths.lock):
+            now_iso = datetime.now(timezone.utc).isoformat(
+                timespec="seconds"
+            ).replace("+00:00", "Z")
+            outcome = run_publish(pa, now_iso=now_iso)
+    except ReviewLockHeld as e:
+        stderr.write(f"scriptorium publish: {e}\n")
+        return EXIT_CODES["E_LOCKED"]
+    except NlmTimeoutError as e:
+        stderr.write(f"scriptorium publish: nlm subprocess timed out: {e}\n")
+        return EXIT_CODES["E_TIMEOUT"]
+    except PublishError as e:
+        stderr.write(f"scriptorium publish: {e}\n")
+        return EXIT_CODES[e.symbol]
+
+    if pa.json_mode:
+        stdout.write(json.dumps(outcome.to_json_dict()) + "\n")
+    else:
+        stdout.write(f"{outcome.notebook_url}\n")
+    return 0
+
+
 # --- dispatch ---
 
 
@@ -343,6 +402,7 @@ _HANDLERS: dict[tuple[str, str | None], _Handler] = {
     ("bib", None): cmd_bib,
     ("config", "get"): cmd_config_get,
     ("config", "set"): cmd_config_set,
+    ("publish", None): cmd_publish,
 }
 
 
@@ -456,6 +516,13 @@ def _build_parser() -> argparse.ArgumentParser:
     pcg_set = pcgs.add_parser("set")
     pcg_set.add_argument("key")
     pcg_set.add_argument("value")
+
+    pp = sub.add_parser("publish", help="Publish a review to NotebookLM")
+    pp.add_argument("--notebook")
+    pp.add_argument("--generate", choices=["audio", "deck", "mindmap", "video", "all"])
+    pp.add_argument("--sources")
+    pp.add_argument("--yes", action="store_true")
+    pp.add_argument("--json", dest="json_mode", action="store_true")
 
     return p
 
