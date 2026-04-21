@@ -27,6 +27,18 @@ print(tool_input.get("file_path", ""))
 ' 2>/dev/null)"
 
 case "$file_path" in
+  *overview.md)
+    if ! command -v scriptorium >/dev/null 2>&1; then
+      printf '[evidence-first gate] scriptorium CLI not on PATH — skipping overview lint.\n' >&2
+      exit 0
+    fi
+    out="$(scriptorium verify --overview "$file_path" 2>&1)"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      printf '[evidence-first gate] scriptorium verify --overview %s exited %s\n' "$file_path" "$rc" >&2
+      printf '%s\n' "$out" >&2
+    fi
+    ;;
   *synthesis.md)
     if ! command -v scriptorium >/dev/null 2>&1; then
       printf '[evidence-first gate] scriptorium CLI not on PATH — skipping redundancy check; lit-synthesizing step 5 remains authoritative.\n' >&2

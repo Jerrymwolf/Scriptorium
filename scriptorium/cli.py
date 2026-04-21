@@ -266,8 +266,20 @@ def cmd_audit_read(args, paths, stdout, stderr, stdin) -> int:
 
 
 def cmd_verify(args, paths, stdout, stderr, stdin) -> int:
-    synth_path = Path(args.synthesis)
-    if not synth_path.exists():
+    if getattr(args, 'overview', None):
+        from scriptorium.errors import EXIT_CODES
+        from scriptorium.frontmatter import strip_frontmatter
+        from scriptorium.overview.linter import OverviewLintError, lint_overview
+        body = strip_frontmatter(Path(args.overview).read_text(encoding="utf-8"))
+        try:
+            lint_overview(body)
+        except OverviewLintError as e:
+            stderr.write(f"scriptorium verify --overview: {e}\n")
+            return EXIT_CODES["E_OVERVIEW_FAILED"]
+        stdout.write(json.dumps({"ok": True}) + "\n")
+        return 0
+    synth_path = Path(args.synthesis) if args.synthesis else None
+    if synth_path is None or not synth_path.exists():
         raise CLIError(f"synthesis file not found: {synth_path}")
     text = synth_path.read_text(encoding="utf-8")
     report = verify_synthesis(text, paths)
@@ -613,7 +625,8 @@ def _build_parser() -> argparse.ArgumentParser:
     pas.add_parser("read")
 
     pv = sub.add_parser("verify", help="Verify synthesis citations")
-    pv.add_argument("--synthesis", required=True)
+    pv.add_argument("--synthesis", default=None)
+    pv.add_argument("--overview", default=None, help="Run overview lint instead of synthesis verify")
 
     sub.add_parser(
         "contradictions",
