@@ -317,6 +317,40 @@ def cmd_config_set(args, paths, stdout, stderr, stdin) -> int:
     return 0
 
 
+def cmd_regenerate_overview(args, paths, stdout, stderr, stdin) -> int:
+    import json as _json
+    from scriptorium.config import default_user_config_path, resolve_config
+    from scriptorium.errors import EXIT_CODES
+    from scriptorium.overview.generator import regenerate_overview, write_failed_draft
+    from scriptorium.overview.linter import OverviewLintError
+    from scriptorium.paths import resolve_review_dir
+    review_paths = resolve_review_dir(
+        explicit=Path(args.review_dir_pos),
+        vault_root=None,
+        cwd=None,
+        create=False,
+    )
+    cfg = resolve_config(
+        review_dir=review_paths.root,
+        user_config_path=default_user_config_path(),
+    )
+    model = args.model or cfg.default_model
+    try:
+        result = regenerate_overview(
+            review_paths, model=model, seed=args.seed,
+            research_question="", review_id=review_paths.root.name,
+        )
+    except OverviewLintError as e:
+        write_failed_draft(review_paths, str(e))
+        stderr.write(f"scriptorium regenerate-overview: {e}\n")
+        return EXIT_CODES["E_OVERVIEW_FAILED"]
+    if args.json_mode:
+        stdout.write(_json.dumps(result.to_dict()) + "\n")
+    else:
+        stdout.write(f"{result.path}\n")
+    return 0
+
+
 def cmd_publish(args, paths, stdout, stderr, stdin) -> int:
     import json
     from datetime import datetime, timezone
@@ -440,6 +474,7 @@ _HANDLERS: dict[tuple[str, str | None], _Handler] = {
     ("config", "get"): cmd_config_get,
     ("config", "set"): cmd_config_set,
     ("publish", None): cmd_publish,
+    ("regenerate-overview", None): cmd_regenerate_overview,
 }
 
 
@@ -553,6 +588,12 @@ def _build_parser() -> argparse.ArgumentParser:
     pcg_set = pcgs.add_parser("set")
     pcg_set.add_argument("key")
     pcg_set.add_argument("value")
+
+    po = sub.add_parser("regenerate-overview", help="Rebuild overview.md")
+    po.add_argument("review_dir_pos", metavar="review-dir")
+    po.add_argument("--model", default=None)
+    po.add_argument("--seed", type=int, default=None)
+    po.add_argument("--json", dest="json_mode", action="store_true")
 
     pp = sub.add_parser("publish", help="Publish a review to NotebookLM")
     pp.add_argument("--notebook")
