@@ -353,19 +353,56 @@ def cmd_publish(args, paths, stdout, stderr, stdin) -> int:
         ))
         return 0
 
+    from scriptorium.publish import has_prior_publish
+    if not pa.yes and has_prior_publish(paths.audit_md, pa.notebook):
+        stdout.write("Proceed and create a new notebook? [y/N] ")
+        stdout.flush()
+        resp = stdin.readline().strip().lower()
+        if resp not in ("y", "yes"):
+            return 0
+
+    from scriptorium.publish import append_partial_audit
+    state: dict = {"uploaded_names": [], "attempted_sources": [], "notebook_name": pa.notebook}
+
     try:
         with ReviewLock(paths.lock):
             now_iso = datetime.now(timezone.utc).isoformat(
                 timespec="seconds"
             ).replace("+00:00", "Z")
-            outcome = run_publish(pa, now_iso=now_iso)
+            outcome = run_publish(pa, now_iso=now_iso, partial_state=state)
+            from scriptorium.publish import append_publish_audit, collect_source_files
+            append_publish_audit(
+                review_dir=pa.review_dir,
+                outcome=outcome,
+                attempted_sources=collect_source_files(review_dir=pa.review_dir, sources=pa.sources),
+                status="success",
+                triggered_by="scriptorium publish",
+                generate_flag=pa.generate,
+                notebook_name=pa.notebook,
+            )
     except ReviewLockHeld as e:
         stderr.write(f"scriptorium publish: {e}\n")
         return EXIT_CODES["E_LOCKED"]
     except NlmTimeoutError as e:
+        append_partial_audit(
+            review_dir=pa.review_dir, attempted_sources=state.get("attempted_sources", []),
+            uploaded_names=state.get("uploaded_names", []), notebook_id=state.get("notebook_id"),
+            notebook_url=state.get("notebook_url"), notebook_name=state.get("notebook_name"),
+            failing_command=state.get("failing_command", "nlm (timeout)"),
+            exit_code=None, stderr_truncated="timeout", symbol="E_TIMEOUT",
+        )
         stderr.write(f"scriptorium publish: nlm subprocess timed out: {e}\n")
         return EXIT_CODES["E_TIMEOUT"]
     except PublishError as e:
+        if state.get("notebook_id"):
+            append_partial_audit(
+                review_dir=pa.review_dir, attempted_sources=state.get("attempted_sources", []),
+                uploaded_names=state.get("uploaded_names", []), notebook_id=state.get("notebook_id"),
+                notebook_url=state.get("notebook_url"), notebook_name=state.get("notebook_name"),
+                failing_command=state.get("failing_command", "nlm"),
+                exit_code=state.get("exit_code"), stderr_truncated=state.get("stderr", ""),
+                symbol=e.symbol,
+            )
         stderr.write(f"scriptorium publish: {e}\n")
         return EXIT_CODES[e.symbol]
 
