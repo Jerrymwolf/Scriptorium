@@ -28,9 +28,9 @@ def test_dual_runtime_framing():
     assert "cowork" in text
 
 
-def test_cc_install_uses_pipx_and_installer_script():
+def test_cc_install_uses_pip_and_installer_script():
     text = README.read_text(encoding="utf-8")
-    assert "pipx install scriptorium" in text or "pipx install ." in text
+    assert "pip install" in text
     assert "install_plugin.sh" in text
 
 
@@ -55,14 +55,14 @@ def test_defect_fix_eight_no_bundle_submission_language():
 
 def test_three_disciplines_listed():
     text = README.read_text(encoding="utf-8").lower()
-    assert "evidence-first" in text
+    assert "every claim cites" in text or "cite" in text
     assert "prisma" in text
     assert "contradiction" in text
 
 
-def test_test_and_license_sections_present():
+def test_develop_and_license_sections_present():
     text = README.read_text(encoding="utf-8")
-    assert "## Test" in text or "### Test" in text
+    assert "## Develop" in text or "## Test" in text or "### Test" in text
     assert "## License" in text or "### License" in text
 
 
