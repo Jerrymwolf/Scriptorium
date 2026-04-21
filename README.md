@@ -1,90 +1,215 @@
 # Scriptorium
 
+**Status:** beta (v0.3.0) — install with `pip install scriptorium-cli`.
+
+**A literature review workflow you can defend.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
 > **Architected in the style of [Superpowers](https://github.com/obra/superpowers).** Skills here apply the same pattern — self-contained folders with `SKILL.md` files that Claude loads on demand — to the craft of literature review. The name of the style is *Superpowers*; the application to literature review is *Scriptorium*.
 
-Dual-runtime (Claude Code + Cowork) literature-review plugin. Replaces hand-rolled Elicit-style workflows for the search → synthesis path of a lit review, with three enforced disciplines:
+---
 
-1. **Evidence-first claims** — every synthesis sentence carries a `[paper_id:locator]` citation that resolves to an `evidence.jsonl` row; the `lit-synthesizing` skill ends with a mandatory cite-check.
-2. **PRISMA audit trail** — every search, screen, extraction, and reasoning decision appends to `audit.jsonl` + `audit.md`.
-3. **Contradiction surfacing** — `lit-contradiction-check` names disagreement between papers rather than averaging them into a bland claim.
+You've got 200 candidate papers, a deadline, and no defensible record of how you got here. Your committee asks *"how did you search?"* — and the honest answer won't reconstruct.
 
-## What's in v0.2
+Scriptorium turns the middle third of your lit review — **search → synthesis** — into a disciplined, auditable workflow inside the AI assistant you already use. Every claim in your draft cites a paper and page. Every search, screen, and extraction is logged. Contradictions between papers get named, not averaged.
 
-- OpenAlex (default) + Semantic Scholar (opt-in) search adapters in Claude Code
-- Consensus + Scholar Gateway + PubMed MCP connector support in Cowork
-- Full-text cascade: user-dropped PDFs → Unpaywall → arXiv → PMC → abstract-only (CC); PubMed `get_full_text_article` + user uploads (Cowork)
-- Per-review state in plain files (`corpus.jsonl`, `evidence.jsonl`, `audit.md`/`audit.jsonl`, `synthesis.md`, `pdfs/`, `bib/`) with a state-adapter that maps the same concepts onto NotebookLM notebooks (primary), Google Drive folders (fallback), Notion pages (stretch), or session-only in Cowork
-- Evidence-first PostToolUse hook (CC only) — belt-and-suspenders redundancy on top of the skill-level cite-check
-- Basic contradiction surfacing (positive vs negative direction on the same concept)
-- BibTeX + RIS export
-- NotebookLM Studio publishing — generate a podcast, slide deck, infographic, or video overview of the finished review
+When you finish, you have a chapter you can defend, a methods-section-ready audit trail, and — optionally — a NotebookLM podcast, slide deck, infographic, or video generated from the review itself.
 
-## Two runtimes, one prose layer
+Runs in **Claude Code**, **Claude Cowork**, or **Codex**. No new subscription — it rides the Claude or ChatGPT plan you already have.
 
-Scriptorium runs in **Claude Code** via the `scriptorium` CLI plus slash commands + a PostToolUse hook, and in **Cowork** via skills + platform MCPs. The `using-scriptorium` meta-skill runs a runtime probe at session start and dispatches every phase to the right surface. See [`docs/cowork-smoke.md`](docs/cowork-smoke.md) for the Cowork connector matrix and the degraded-mode fallback.
+---
+
+## Who this is for
+
+Graduate researchers across disciplines — MS and PhD students, postdocs, research staff, librarians. Scriptorium is domain-neutral; the same three disciplines apply whether your question is:
+
+- *"Does a caffeine dose of 75–150mg improve working memory in healthy adults?"* (health sciences)
+- *"How do institutional investors shape shareholder voting outcomes?"* (political science / business)
+- *"What epistemological commitments distinguish constructivist grounded theory from classical?"* (methodology / humanities)
+
+If your review needs to cite its sources and survive committee scrutiny, this tool is for you.
+
+---
+
+## What you get
+
+- **A defensible synthesis.** Every sentence in `synthesis.md` traces to a paper and page. If it's not in the evidence, it's not in the draft.
+- **A committee-ready audit trail.** `audit.md` is a timestamped log of every query, screen decision, and extraction call. Your methods chapter has a receipt.
+- **A clean reference library.** BibTeX and RIS exports drop straight into Zotero, Mendeley, EndNote, Paperpile — whatever you use.
+- **The PDFs you actually read.** Scriptorium fetches open-access full text (Unpaywall, arXiv, PMC) and ingests ones you drop in. Your corpus lives where you work, not in someone else's cloud.
+- **A published summary of your own review.** Generate a NotebookLM podcast, slide deck, infographic, or video — see [Share the finished review](#share-the-finished-review) below.
+
+---
+
+## Three disciplines, enforced
+
+**1. Every claim cites its source.** Every synthesis sentence carries a `[paper_id:page:N]` token that resolves to a row in an evidence ledger. A final cite-check strips or flags anything unsupported. In Claude Code, a write-time hook runs the same check redundantly — belt and suspenders against hallucination.
+
+**2. Every decision is logged.** A PRISMA-style audit trail timestamps every search query, screen decision, extraction call, and reasoning step. When your committee asks *"how did you search?"*, you show them the file.
+
+**3. Disagreement stays visible.** When two papers disagree on the same concept, Scriptorium names the camps — not a bland average. The output labels papers supporting each side, so tension in the literature survives into your draft instead of getting smoothed into false consensus.
+
+---
+
+## What the output looks like
+
+**A row of `evidence.jsonl`** — one extracted claim, locator-cited:
+
+```json
+{"paper_id": "nehlig2010", "locator": "page:4", "claim": "Caffeine at 75–150mg improves sustained attention in healthy adults", "quote": "Doses between 75 and 150 mg improve sustained attention and vigilance...", "direction": "positive", "concept": "attention"}
+```
+
+**A fragment of `synthesis.md`** — every sentence citation-grounded:
+
+```markdown
+Caffeine at 75–150mg doses reliably improves sustained attention [nehlig2010:page:4],
+though effects on working memory are mixed: short-term recall shows gains in healthy
+adults [smith2018:page:7], while complex span tasks show no benefit [kennedy2017:page:12].
+```
+
+Every bracketed token resolves to a real row. Unsupported or hallucinated citations fail the cite-check before the file commits.
+
+---
+
+## A session, step by step
+
+In **Claude Code**:
+
+```
+/lit-review "does caffeine improve working memory in healthy adults?"
+```
+
+1. **Scope.** Scriptorium asks clarifying questions and writes the scope to `audit.md`.
+2. **Search.** Queries OpenAlex (default) or Semantic Scholar (opt-in); dedupes results.
+3. **Screen.** Applies your inclusion/exclusion criteria; logs every call.
+4. **Retrieve full text.** Cascades through user-dropped PDF → Unpaywall → arXiv → PMC → abstract-only.
+5. **Extract.** Pulls locator-cited claims into `evidence.jsonl`.
+6. **Synthesize.** Writes `synthesis.md` with every sentence citation-grounded.
+7. **Surface contradictions.** Names disagreement between papers by camp.
+8. **Cite-check.** Final pass — unsupported claims get flagged or stripped before commit.
+9. **Publish (optional).** Offers a NotebookLM podcast, deck, infographic, or video.
+
+In **Claude Cowork**: say *"run a lit review on caffeine and working memory"* — the `running-lit-review` skill fires the same pipeline through Consensus, Scholar Gateway, and PubMed MCPs, with NotebookLM as the state home.
+
+In **Codex**: same skills and commands, via symlink.
+
+---
+
+## Share the finished review
+
+When your synthesis passes cite-check, Scriptorium offers four NotebookLM Studio artifacts — each generated from your actual corpus:
+
+- **Audio podcast** (8–20 min, two-host) — commute-prep for comps, share with an advisor who won't read 30 pages.
+- **Slide deck** — prospectus defense, committee meeting, conference talk.
+- **Infographic** — poster section, chapter appendix, research-day handout.
+- **Video overview** — lab wiki, teaching module, dissertation landing page.
+
+Quota-metered by Google. All four use your own corpus — no external content gets injected.
+
+---
+
+## Where it runs
+
+| Surface | Claude Code | Claude Cowork | Codex |
+|---|---|---|---|
+| Invocation | `/lit-review "…"` | *"run a lit review on X"* | `/lit-review "…"` via symlinked skills |
+| Search | `scriptorium` CLI (OpenAlex, Semantic Scholar) | Consensus · Scholar Gateway · PubMed MCPs | CLI |
+| Full text | Unpaywall · arXiv · PMC · user PDFs | PubMed full-text + user uploads | Unpaywall · arXiv · PMC · user PDFs |
+| State home | Plain files in review directory | NotebookLM notebook → Drive → Notion → session | Plain files |
+| Publishing | NotebookLM Studio (if enabled) | NotebookLM Studio | NotebookLM Studio (if enabled) |
+| Cite-check | Skill step + PostToolUse hook | Skill step | Skill step + PostToolUse hook |
+
+Same prose layer, different surfaces. A runtime probe in the `using-scriptorium` meta-skill picks the right path at session start.
+
+---
 
 ## Install
 
-### Claude Code
+Scriptorium is source-install for now — not yet on PyPI.
+
+### Quick start (Claude Code)
 
 ```bash
-# 1. Install the CLI (gives you the `scriptorium` console script)
-pipx install scriptorium
-
-# 2. Install the plugin surface (symlinks .claude-plugin/ into ~/.claude/plugins/scriptorium)
-git clone https://github.com/jeremiahwolf/scriptorium.git
+git clone https://github.com/jerrymwolf/scriptorium.git
 cd scriptorium
+pip install -e .
 ./scripts/install_plugin.sh
-
-# 3. Restart Claude Code so the plugin loads
 ```
 
-Then in any Claude Code session:
+Restart Claude Code, then in any session:
 
 ```
-/lit-config              # one-time: set Unpaywall email + other settings
+/lit-config              # one-time: set unpaywall_email
 /lit-review "your research question"
 ```
 
-Optional flags on `/lit-review`: `--review-dir <path>` to put the review state somewhere other than the current directory.
+Add `--review-dir <path>` to put review state somewhere other than the current directory.
 
-### Cowork
+### Claude Cowork
 
-Install the plugin in your Cowork workspace. Enable these connectors for the full experience:
+Install the plugin in your Cowork workspace. For the full experience, enable these connectors:
 
-- **Consensus** — claim-framed search (`mcp__claude_ai_Consensus__search`)
-- **Scholar Gateway** — breadth search (`mcp__claude_ai_Scholar_Gateway__semanticSearch`)
-- **PubMed** — biomed search + OA full text (`mcp__claude_ai_PubMed__*`)
-- **NotebookLM** — state home + Studio publishing (`mcp__notebooklm-mcp__*`)
+- **Consensus** — claim-framed search
+- **Scholar Gateway** — breadth search
+- **PubMed** — biomedical search + OA full text
+- **NotebookLM** — state home + Studio publishing
 
-Without any search connector, the plugin falls back to WebFetch against the OpenAlex REST API (degraded mode — tell the user). Without NotebookLM, state lives in a Drive folder, a Notion page, or session-only in that order. See `docs/cowork-smoke.md` for the full capability table.
+Without a search connector, the plugin falls back to WebFetch against OpenAlex and tells you it's in degraded mode. Without NotebookLM, state lives in a Drive folder, a Notion page, or session-only — in that order. See [`docs/cowork-smoke.md`](docs/cowork-smoke.md) for the full capability matrix.
 
-Then in any Cowork chat, say:
+Then in any Cowork chat:
 
 > Run a lit review on caffeine and working memory.
 
-The `running-lit-review` skill activates on that phrasing and runs the same pipeline as `/lit-review` does in CC.
-
 ### Codex
 
-Run `./scripts/codex_link.sh` to populate `.codex/skills/` and `.codex/commands/` as symlinks into `.claude-plugin/`. Point your Codex config at the repo.
+```bash
+./scripts/codex_link.sh
+```
 
-## Per-review files
+Populates `.codex/skills/` and `.codex/commands/` as symlinks into `.claude-plugin/`. Point your Codex config at the repo.
 
-Run `/lit-review` (CC) or say "run a lit review on X" (Cowork) from the directory (or notebook) where review state should live — typically a dissertation chapter directory in CC, or a fresh NotebookLM notebook in Cowork. Override with `--review-dir <path>` in CC.
+---
 
-## Configuration
+## Configure
 
-Run `/lit-config` (CC) or say "configure scriptorium" (Cowork). Required: `unpaywall_email`. Optional: `openalex_email`, `semantic_scholar_api_key`, `default_backend`, `languages`. All writes go through `scriptorium config set KEY VALUE` (CC) or a user-memory note (Cowork) — never through shell-exec.
+```bash
+scriptorium config set unpaywall_email you@university.edu
+```
 
-## Test
+Required: `unpaywall_email`. Optional: `openalex_email`, `semantic_scholar_api_key`, `default_backend`, `languages`. In Cowork, the same config lives as a user-memory note — the `configuring-scriptorium` skill handles it.
+
+All writes go through `scriptorium config set KEY VALUE` — never shell-exec.
+
+---
+
+## What stays yours
+
+Scriptorium owns the middle third of the workflow — search through synthesis. Scoping the question and writing the final chapter stay with you. The cite-check fails closed: unsupported claims get flagged or stripped before commit, so nothing hallucinated ships in your draft.
+
+**Not in v0.2** — SVG PRISMA flow diagrams, thematic maps, `comparison.csv`, Graphify and Firecrawl integration, and a live-watch view are planned for v0.3.
+
+---
+
+## Design and docs
+
+- **Design spec:** [`docs/superpowers/specs/2026-04-19-superpowers-research-design.md`](docs/superpowers/specs/2026-04-19-superpowers-research-design.md)
+- **Implementation plan:** [`docs/superpowers/plans/2026-04-19-scriptorium-v0.2.md`](docs/superpowers/plans/2026-04-19-scriptorium-v0.2.md)
+- **Cowork capability matrix:** [`docs/cowork-smoke.md`](docs/cowork-smoke.md)
+
+---
+
+## Develop
 
 ```bash
 pip install -e ".[dev]"
 pytest
 ```
 
-Runs the full suite — unit tests for every adapter, integration tests for the CLI, content tests for every skill/command, and the end-to-end caffeine fixture pipeline in `tests/test_e2e_caffeine.py`.
+Runs the full suite — adapter unit tests, CLI integration tests, skill/command content tests, the end-to-end caffeine fixture in `tests/test_e2e_caffeine.py`, and a mocked-NotebookLM test for the `lit-publishing` skill.
+
+---
 
 ## License
 
