@@ -14,3 +14,25 @@ You are starting an end-to-end literature review for: **{{ARGS}}**
 3. If the user passed `--review-dir <path>` in the arguments, thread it through `using-scriptorium`'s state-adapter resolution so every subsequent `scriptorium` CLI call inherits it.
 
 Do not re-implement the pipeline here. The skill is the single source of truth so that Claude Code and Cowork execute the same review.
+
+## v0.3 end-of-review steps
+
+After cite-check passes and `contradictions.md` is written, run:
+
+```bash
+scriptorium regenerate-overview {{REVIEW_DIR}}
+```
+
+If `notebooklm_prompt` is not `false`, `notebooklm_enabled` is `true`, and
+`nlm doctor` succeeds, show this prompt (skip is default):
+
+```
+NotebookLM artifact? (skip default)
+  audio
+  deck
+  mindmap
+  skip
+```
+
+Route non-`skip` selections to `scriptorium publish --review-dir <path>
+--generate <audio|deck|mindmap>`.
