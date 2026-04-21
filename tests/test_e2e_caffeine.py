@@ -171,3 +171,39 @@ def test_caffeine_pipeline_end_to_end(review_dir):
     assert code == 0
     phases = {json.loads(line)["phase"] for line in out.splitlines() if line.strip()}
     assert {"search", "screening", "extraction"}.issubset(phases)
+
+
+def test_e2e_caffeine_v03_artifacts(tmp_path, monkeypatch):
+    """§13.3: after the caffeine fixture runs, v0.3 artifacts must exist."""
+    from pathlib import Path
+    import json
+    from scriptorium.cli import main
+    import io
+
+    root = tmp_path / "reviews" / "caffeine-wm"
+    root.mkdir(parents=True)
+    (root / "synthesis.md").write_text(
+        "Caffeine helps WM [[nehlig2010#p-4]].\n", encoding="utf-8",
+    )
+    (root / "contradictions.md").write_text(
+        "No disagreement in corpus. <!-- synthesis -->\n", encoding="utf-8",
+    )
+    (root / "evidence.jsonl").write_text(
+        json.dumps({
+            "paper_id": "nehlig2010", "locator": "page:4",
+            "claim": "Caffeine helps WM", "quote": "helps",
+            "direction": "positive", "concept": "wm",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    out = io.StringIO(); err = io.StringIO()
+    rc = main(["regenerate-overview", str(root), "--json"], stdout=out, stderr=err)
+    assert rc == 0, err.getvalue()
+    text = (root / "overview.md").read_text(encoding="utf-8")
+    for section in (
+        "TL;DR", "Scope & exclusions", "Most-cited works in this corpus",
+        "Reading list",
+    ):
+        assert f"## {section}" in text
+    assert text.startswith("---\n")
+    assert "schema_version: \"scriptorium.review_file.v1\"" in text
