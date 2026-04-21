@@ -317,6 +317,11 @@ def cmd_config_set(args, paths, stdout, stderr, stdin) -> int:
     return 0
 
 
+def cmd_doctor(args, paths, stdout, stderr, stdin) -> int:
+    from scriptorium.doctor import run_doctor
+    return run_doctor(stdout)
+
+
 def cmd_migrate_review(args, paths, stdout, stderr, stdin) -> int:
     import json as _json
     from scriptorium.errors import EXIT_CODES, ScriptoriumError
@@ -500,6 +505,7 @@ _HANDLERS: dict[tuple[str, str | None], _Handler] = {
     ("publish", None): cmd_publish,
     ("regenerate-overview", None): cmd_regenerate_overview,
     ("migrate-review", None): cmd_migrate_review,
+    ("doctor", None): cmd_doctor,
 }
 
 
@@ -613,6 +619,8 @@ def _build_parser() -> argparse.ArgumentParser:
     pcg_set = pcgs.add_parser("set")
     pcg_set.add_argument("key")
     pcg_set.add_argument("value")
+
+    sub.add_parser("doctor", help="Diagnose scriptorium installation")
 
     pm = sub.add_parser("migrate-review", help="Migrate a legacy review to v0.3")
     pm.add_argument("review_dir_pos", metavar="review-dir")
