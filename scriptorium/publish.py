@@ -221,6 +221,9 @@ def run_publish(args: PublishArgs, *, now_iso: str, partial_state: Optional[dict
     try:
         nlm.doctor()
     except Exception as e:
+        from scriptorium.nlm import NlmTimeoutError as _NlmTimeoutError
+        if isinstance(e, _NlmTimeoutError):
+            raise
         raise PublishError(
             "nlm CLI not found or not authenticated. Install with "
             "'uv tool install notebooklm-mcp-cli' and run 'nlm login'. "
@@ -231,6 +234,9 @@ def run_publish(args: PublishArgs, *, now_iso: str, partial_state: Optional[dict
     try:
         created = nlm.create_notebook(args.notebook)
     except Exception as e:
+        from scriptorium.nlm import NlmTimeoutError as _NlmTimeoutError
+        if isinstance(e, _NlmTimeoutError):
+            raise
         stderr_val = getattr(e, "stderr", "")
         rc_val = getattr(e, "returncode", "?")
         raise PublishError(
