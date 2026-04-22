@@ -1,0 +1,10 @@
+{
+  "name": "scriptorium-local",
+  "plugins": [
+    {
+      "name": "scriptorium",
+      "version": "0.3.1",
+      "source": "./"
+    }
+  ]
+}
