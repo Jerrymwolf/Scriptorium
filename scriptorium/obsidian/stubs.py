@@ -159,7 +159,7 @@ def write_or_update_paper_stub(path: Path, data: PaperStubInput) -> str:
 
     frontmatter = PaperStubFrontmatter(
         schema_version="scriptorium.paper.v1",
-        scriptorium_version="0.3.0",
+        scriptorium_version="0.3.1",
         paper_id=data.paper_id,
         title=data.title,
         authors=list(data.authors),

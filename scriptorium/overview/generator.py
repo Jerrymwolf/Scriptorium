@@ -114,7 +114,7 @@ def regenerate_overview(
 
     fm = ReviewArtifactFrontmatter(
         schema_version="scriptorium.review_file.v1",
-        scriptorium_version="0.3.0",
+        scriptorium_version="0.3.1",
         review_id=review_id_,
         review_type="overview",
         created_at=now,

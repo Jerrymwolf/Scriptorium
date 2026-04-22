@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status: beta](https://img.shields.io/badge/status-beta%20v0.3-blue.svg)](#status)
+[![Status: beta](https://img.shields.io/badge/status-beta%20v0.3.1-blue.svg)](#status)
 
 You have 200 candidate papers, a deadline, and no defensible record of how you got here. When your committee asks *"how did you find these sources"* and you've honestly forgotten. 
 
@@ -320,16 +320,19 @@ NotebookLM is not listed as a state home because it doesn't expose the kind of s
 
 ## Install <a id="install"></a>
 
-Scriptorium is source-install for now — not yet on PyPI.
-
 <details open>
 <summary><b>Claude Code (recommended)</b></summary>
+
+```bash
+pip install scriptorium-cli
+```
+
+Or from source:
 
 ```bash
 git clone https://github.com/jerrymwolf/scriptorium.git
 cd scriptorium
 pip install -e .
-./scripts/install_plugin.sh
 ```
 
 Restart Claude Code, then in any session:

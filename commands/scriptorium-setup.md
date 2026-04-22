@@ -17,7 +17,7 @@ Outline (full body in `setting-up-scriptorium/SKILL.md`):
 1. Precheck Python `>=3.11`, writable `$HOME`, current shell access.
 2. Install package: prefer `uv pip install scriptorium-cli`; fallback
    `pip install scriptorium-cli`.
-3. Verify `scriptorium --version` prints `scriptorium 0.3.0`.
+3. Verify `scriptorium --version` prints `scriptorium 0.3.1`.
 4. Install `.claude-plugin/` and prompt the user to restart Claude Code.
 5. Auto-detect Obsidian vault or accept `--vault <path>`; persist with
    `scriptorium config set obsidian_vault <path>`.

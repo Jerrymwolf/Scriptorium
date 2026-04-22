@@ -13,7 +13,7 @@ def test_doctor_runs_and_reports_version(tmp_path, monkeypatch):
         mock_nlm.doctor.return_value = NlmResult("ok", "", 0)
         rc = main(["doctor"], stdout=out, stderr=err)
     assert rc == 0
-    assert "scriptorium 0.3.0" in out.getvalue()
+    assert "scriptorium 0.3.1" in out.getvalue()
     assert "nlm: ok" in out.getvalue()
 
 

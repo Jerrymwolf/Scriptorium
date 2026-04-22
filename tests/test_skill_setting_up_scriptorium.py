@@ -10,7 +10,7 @@ def test_exists_and_covers_flow():
     text = PATH.read_text(encoding="utf-8")
     for token in (
         "uv pip install scriptorium-cli", "pip install scriptorium-cli",
-        "scriptorium --version", "scriptorium 0.3.0",
+        "scriptorium --version", "scriptorium 0.3.1",
         "uv tool install notebooklm-mcp-cli", "pipx install notebooklm-mcp-cli",
         "nlm login", "nlm doctor",
         "notebooklm_enabled true", "--skip-notebooklm",

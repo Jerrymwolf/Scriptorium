@@ -4,8 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scriptorium-cli"
-version = "0.3.0"
+version = "0.3.1"
 description = "Dual-runtime literature-review plugin for Claude Code and Cowork"
+readme = "README.md"
+authors = [{ name = "Jeremiah Wolf", email = "jeremiahmwolf@gmail.com" }]
 requires-python = ">=3.11"
 dependencies = [
   "httpx>=0.27",

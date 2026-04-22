@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.3.1 — 2026-04-22
+
+### Fixed
+
+- Plugin layout: moved `commands/`, `skills/`, `hooks/`, `CLAUDE.md` to plugin root so Claude Code actually loads slash commands
+- Added `.claude-plugin/marketplace.json` so `/plugin install scriptorium@scriptorium-local` works from GitHub
+- Removed `scripts/install_plugin.sh` — the symlink-into-~/.claude/plugins/ approach was silently doing nothing in modern Claude Code
+- `/scriptorium-setup` rewritten as post-install config only (no longer pretends to install the plugin)
+- Hard preflight added to `/lit-config` and `/lit-review`: CLI-missing stops immediately with install instructions
+
+### Migration for early users
+
+If you ran the old `install_plugin.sh`, remove the stale symlink:
+
+```bash
+rm -rf ~/.claude/plugins/scriptorium
+```
+
+Then follow the new install flow in the README.
+
 ## 0.3.0 — 2026-04-20
 
 ### Added

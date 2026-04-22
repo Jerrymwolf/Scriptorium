@@ -51,7 +51,7 @@ def _ensure_frontmatter(
     now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     fm = ReviewArtifactFrontmatter(
         schema_version="scriptorium.review_file.v1",
-        scriptorium_version="0.3.0",
+        scriptorium_version="0.3.1",
         review_id=review_id,
         review_type=review_type,
         created_at=now,

@@ -15,7 +15,7 @@ from scriptorium.frontmatter import (
 
 SAMPLE_PAPER = PaperStubFrontmatter(
     schema_version="scriptorium.paper.v1",
-    scriptorium_version="0.3.0",
+    scriptorium_version="0.3.1",
     paper_id="nehlig2010",
     title="Is caffeine a cognitive enhancer?",
     authors=["Nehlig, A."],
@@ -56,7 +56,7 @@ def test_review_artifact_requires_review_type():
     with pytest.raises(FrontmatterError):
         ReviewArtifactFrontmatter.validate_dict({
             "schema_version": "scriptorium.review_file.v1",
-            "scriptorium_version": "0.3.0",
+            "scriptorium_version": "0.3.1",
             "review_id": "caffeine-wm",
             # missing review_type
             "created_at": "2026-04-20T14:32:08Z",

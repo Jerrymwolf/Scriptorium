@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 
-STATE_VERSION = "0.3.0"
+STATE_VERSION = "0.3.1"
 
 
 class SetupStateCorrupt(Exception):

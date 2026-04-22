@@ -1,6 +1,6 @@
 {
   "name": "scriptorium",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Dual-runtime (Claude Code + Cowork) literature-review plugin in the style of Superpowers. Evidence-first, PRISMA audit trail, contradiction-aware.",
   "author": {
     "name": "Jeremiah Wolf",
