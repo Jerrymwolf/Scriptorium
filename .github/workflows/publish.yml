@@ -1,0 +1,65 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build and test tooling
+        run: python -m pip install --upgrade pip build pytest
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Smoke install wheel
+        run: |
+          python -m venv .venv-smoke
+          . .venv-smoke/bin/activate
+          pip install dist/*.whl
+          scriptorium --version
+
+      - name: Install dev dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run install-surface tests
+        run: |
+          pytest -q \
+            tests/test_plugin_layout.py \
+            tests/test_plugin_manifest.py \
+            tests/test_readme.py \
+            tests/test_release_artifacts.py \
+            tests/test_command_lit_config.py \
+            tests/test_command_lit_review.py \
+            tests/test_commands_cc_only.py \
+            tests/test_slash_publish_commands.py \
+            tests/test_slash_setup.py \
+            tests/test_version_v03.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
