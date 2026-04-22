@@ -31,6 +31,11 @@ description: Use when the user mentions a literature review, asks to find/screen
 Check tool availability in this order and set session-state variables `RUNTIME` (`cc` or `cowork`), `SEARCH_TOOLS`, and `STATE_BACKEND`:
 
 - `Bash` present AND `scriptorium --version` exits 0 → **CC-mode**; use the CLI path for search/verify/corpus/evidence/audit.
+- `Bash` present BUT `scriptorium --version` fails or is not on PATH → **CLI missing in CC**:
+  - For CC-only commands (lit-config, lit-review): stop immediately. Tell the user:
+    `Scriptorium CLI is not on PATH. Run \`pipx install scriptorium-cli\`, restart Claude Code, then retry this command.`
+  - Do not fall into degraded mode for slash commands that require the CLI.
+  - If running in Cowork (no Bash), CLI missing is expected — continue with Cowork tools below.
 - `mcp__claude_ai_Consensus__search` present → Consensus available for search.
 - `mcp__claude_ai_Scholar_Gateway__semanticSearch` present → Scholar Gateway available.
 - `mcp__claude_ai_PubMed__search_articles` present → PubMed available (biomed search + full text).

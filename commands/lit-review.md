@@ -3,6 +3,15 @@ description: Run the full scriptorium lit-review pipeline on a research question
 argument-hint: "<research question>" [--review-dir <path>]
 ---
 
+## Preflight
+
+Run `scriptorium --version` first.
+
+If that command fails or is not on PATH, stop and tell the user exactly:
+`Scriptorium CLI is not on PATH. Run \`pipx install scriptorium-cli\`, restart Claude Code, then retry this command.`
+
+Do not continue in degraded mode for this slash command.
+
 # /lit-review
 
 You are starting an end-to-end literature review for: **{{ARGS}}**
