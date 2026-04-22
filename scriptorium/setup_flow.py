@@ -68,28 +68,8 @@ class InitArgs:
 
 
 def run_init(args: InitArgs, stdout, stderr, stdin) -> int:
-    state_path = default_state_path()
-    try:
-        state = load_state(state_path)
-    except SetupStateCorrupt:
-        moved = move_corrupt_state_aside(state_path)
-        stderr.write(f"W_SETUP_STATE_CORRUPT: moved to {moved}\n")
-        state = {"version": STATE_VERSION, "completed_steps": [], "updated_at": _now()}
-        save_state(state_path, state)
-
-    for step in ("precheck", "package", "plugin", "vault_config", "unpaywall_email"):
-        if step not in state["completed_steps"]:
-            mark_step_completed(state_path, step)
-
-    if args.notebooklm or not args.skip_notebooklm:
-        if "notebooklm" not in state["completed_steps"]:
-            if args.skip_notebooklm:
-                pass
-            else:
-                mark_step_completed(state_path, "notebooklm")
-
-    if "doctor" not in state["completed_steps"]:
-        mark_step_completed(state_path, "doctor")
-
-    stdout.write("Scriptorium setup complete. Try /lit-review to start your first review.\n")
-    return 0
+    # run_init no longer performs installation steps.
+    # Install is: pipx install scriptorium-cli + /plugin marketplace add + /plugin install.
+    # This function is retained for future config-collection logic driven by the
+    # /scriptorium-setup command and setting-up-scriptorium skill.
+    pass

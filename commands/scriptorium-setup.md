@@ -1,39 +1,46 @@
 ---
-description: Install Scriptorium v0.3 and configure NotebookLM, Obsidian, and Unpaywall.
-argument-hint: [--notebooklm] [--skip-notebooklm] [--vault <path>]
+name: scriptorium-setup
+description: Configure Scriptorium after the CLI and plugin are installed. Collects unpaywall email, obsidian vault path, and optional NotebookLM MCP CLI.
 ---
 
-Use the `setting-up-scriptorium` skill to perform this install. The skill
-is the authoritative flow; this slash command is a thin launcher.
+# /scriptorium-setup
 
-Flags:
+This command assumes Scriptorium is already installed:
 
-- `--notebooklm` — re-run only NotebookLM setup.
-- `--skip-notebooklm` — install Scriptorium but skip NotebookLM.
-- `--vault <path>` — use this Obsidian vault after verifying `.obsidian/`.
+1. CLI: `pipx install scriptorium-cli`
+2. Plugin (in Claude Code):
+   ```
+   /plugin marketplace add Jerrymwolf/Scriptorium
+   /plugin install scriptorium@scriptorium-local
+   ```
 
-Outline (full body in `setting-up-scriptorium/SKILL.md`):
+## What this command does
 
-1. Precheck Python `>=3.11`, writable `$HOME`, current shell access.
-2. Install package: prefer `uv pip install scriptorium-cli`; fallback
-   `pip install scriptorium-cli`.
-3. Verify `scriptorium --version` prints `scriptorium 0.3.1`.
-4. Install `.claude-plugin/` and prompt the user to restart Claude Code.
-5. Auto-detect Obsidian vault or accept `--vault <path>`; persist with
-   `scriptorium config set obsidian_vault <path>`.
-6. Ask for `unpaywall_email` and persist.
-7. Unless `--skip-notebooklm`: install `notebooklm-mcp-cli`, show the
-   dedicated-Google-account warning below, run `nlm login`, then verify
-   with `nlm doctor`. Only set `notebooklm_enabled true` after
-   `nlm doctor` succeeds.
-8. Run `scriptorium doctor`.
-9. Print: `You're set. Try /lit-review "your question" --review-dir reviews/<slug>`.
+### Step 1: Preflight
 
-Dedicated-account warning (reproduce verbatim before `nlm login`):
+Run `scriptorium --version`. If it fails or is not on PATH, stop and tell the user:
 
-> Use a dedicated Google account for NotebookLM integration, not your
-> primary account. The nlm CLI works via browser automation; Google may
-> flag automated activity against your primary account. This is an
-> upstream limitation of nlm, not Scriptorium.
->
-> Press Enter to acknowledge and continue, or Ctrl-C to skip NotebookLM setup.
+`Scriptorium CLI is not on PATH. Run \`pipx install scriptorium-cli\`, restart Claude Code, then retry this command.`
+
+### Step 2: Collect configuration
+
+Ask the user:
+
+1. **unpaywall_email** — required for OpenAlex/Unpaywall lookups. Must be a valid email.
+2. **obsidian_vault** — absolute path to their Obsidian vault (the folder containing `.obsidian/`). Optional but strongly recommended.
+3. **notebooklm_enabled** — whether to enable NotebookLM publishing. Optional; defaults to false.
+
+### Step 3: Write config.toml
+
+Write to `config.toml` in the current workspace:
+
+```toml
+[scriptorium]
+unpaywall_email = "<value>"
+obsidian_vault = "<value>"
+notebooklm_enabled = false
+```
+
+### Step 4: Confirm
+
+Tell the user: "Configuration saved to config.toml. Run `/lit-config` to verify, then `/lit-review` to start your first review."

@@ -1,99 +1,72 @@
 ---
 name: setting-up-scriptorium
-description: Install Scriptorium v0.3 end-to-end (package, plugin, vault, Unpaywall, NotebookLM) with a resumable setup-state.
+description: Configure Scriptorium after the CLI and plugin are already installed. Collects unpaywall_email, obsidian_vault, and optional NotebookLM settings.
 ---
 
 # setting-up-scriptorium
 
-This skill owns the `/scriptorium-setup` and `scriptorium init` flows (§7).
-It's idempotent and resumable via `~/.config/scriptorium/setup-state.json`.
+This skill owns the `/scriptorium-setup` flow. It handles post-install configuration only.
 
-## Precheck
+## Prerequisites (already completed before running this skill)
 
-- Python `>=3.11`
-- Writable `$HOME`
-- Current shell available for subprocesses
+1. CLI installed via `pipx install scriptorium-cli`
+2. Plugin installed in Claude Code:
+   ```
+   /plugin marketplace add Jerrymwolf/Scriptorium
+   /plugin install scriptorium@scriptorium-local
+   ```
 
-## Install the package
+## Preflight check
 
-Prefer `uv`:
+Run `scriptorium --version`. If it fails, stop and tell the user:
 
-```bash
-uv pip install scriptorium-cli
-```
+`Scriptorium CLI is not on PATH. Run \`pipx install scriptorium-cli\`, restart Claude Code, then retry this command.`
 
-Fallback:
+## Collect configuration
 
-```bash
-pip install scriptorium-cli
-```
+### unpaywall_email
 
-Verify:
-
-```bash
-scriptorium --version   # must print "scriptorium 0.3.1"
-```
-
-## Install the Claude Code plugin
-
-Copy `.claude-plugin/` into the Claude Code plugin directory via the
-existing convention, then prompt the user to restart Claude Code.
-
-## Configure Obsidian vault
-
-Scan `~/Documents/Obsidian/`, `~/Obsidian/`,
-`~/Library/Mobile Documents/iCloud~md~obsidian/Documents/`, and any
-existing `obsidian_vault`. Accept `--vault <path>` if passed. Only accept
-a directory whose `.obsidian/` subdirectory exists. Persist:
-
-```bash
-scriptorium config set obsidian_vault <path>
-```
-
-## Collect Unpaywall email
+Required for OpenAlex/Unpaywall lookups. Must be a valid email address. Used to identify your API requests to Unpaywall — no account creation needed, just a real email for rate-limit tracking.
 
 ```bash
 scriptorium config set unpaywall_email <email>
 ```
 
-## NotebookLM (skip with --skip-notebooklm)
+### obsidian_vault
 
-Install the CLI (either works):
+Absolute path to the user's Obsidian vault (the folder containing `.obsidian/`). Optional but strongly recommended — enables automatic note export after each review.
+
+Only accept a directory whose `.obsidian/` subdirectory exists. Persist:
 
 ```bash
-uv tool install notebooklm-mcp-cli
-# or
+scriptorium config set obsidian_vault <path>
+```
+
+### notebooklm_enabled
+
+Whether to enable NotebookLM publishing. Optional; defaults to false.
+
+If the user wants NotebookLM, they must have `notebooklm-mcp-cli` installed separately:
+
+```bash
 pipx install notebooklm-mcp-cli
 ```
 
-Show the dedicated-account warning verbatim, then:
+Only set `notebooklm_enabled true` after confirming `nlm doctor` exits zero.
 
-```bash
-nlm login
-nlm doctor
-scriptorium config set notebooklm_enabled true
+## Write config.toml
+
+Write to `config.toml` in the current workspace:
+
+```toml
+[scriptorium]
+unpaywall_email = "<value>"
+obsidian_vault = "<value>"
+notebooklm_enabled = false
 ```
-
-Only set `notebooklm_enabled true` after `nlm doctor` exits zero.
-
-## Dedicated-account warning
-
-> Use a dedicated Google account for NotebookLM integration, not your primary
-> account. The nlm CLI works via browser automation; Google may flag automated
-> activity against your primary account. This is an upstream limitation of nlm,
-> not Scriptorium.
-
-## Resumable setup-state.json
-
-After each step, append the step name to the `completed_steps` list in
-`~/.config/scriptorium/setup-state.json`. On rerun, skip already-completed
-steps after verifying their effect (e.g. `scriptorium --version`,
-`nlm doctor`). On `Ctrl-C` during NotebookLM login, store
-`notebooklm_enabled false`, exit `130`, and leave earlier steps intact.
 
 ## Closing message
 
 ```
-You're set. Try /lit-review "your question" --review-dir reviews/<slug>
-to kick off your first review.
+Configuration saved to config.toml. Run /lit-config to verify, then /lit-review to start your first review.
 ```

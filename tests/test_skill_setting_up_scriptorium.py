@@ -2,18 +2,30 @@ from pathlib import Path
 
 PATH = (
     Path(__file__).resolve().parent.parent
-    / ".claude-plugin" / "skills" / "setting-up-scriptorium" / "SKILL.md"
+    / "skills" / "setting-up-scriptorium" / "SKILL.md"
 )
 
 
-def test_exists_and_covers_flow():
-    text = PATH.read_text(encoding="utf-8")
-    for token in (
-        "uv pip install scriptorium-cli", "pip install scriptorium-cli",
-        "scriptorium --version", "scriptorium 0.3.1",
-        "uv tool install notebooklm-mcp-cli", "pipx install notebooklm-mcp-cli",
-        "nlm login", "nlm doctor",
-        "notebooklm_enabled true", "--skip-notebooklm",
-        "dedicated Google account", "setup-state.json",
-    ):
-        assert token in text, f"missing: {token}"
+def test_setup_skill_does_not_claim_to_install_plugin():
+    body = PATH.read_text(encoding="utf-8")
+    assert "install_plugin.sh" not in body
+    assert ".claude-plugin" not in body
+    assert "unpaywall_email" in body
+
+
+def test_setup_skill_covers_config_keys():
+    body = PATH.read_text(encoding="utf-8")
+    assert "unpaywall_email" in body
+    assert "obsidian_vault" in body
+    assert "notebooklm_enabled" in body
+
+
+def test_setup_skill_references_prerequisites():
+    body = PATH.read_text(encoding="utf-8")
+    assert "pipx install scriptorium-cli" in body
+    assert "/plugin marketplace add" in body
+
+
+def test_setup_skill_has_preflight_check():
+    body = PATH.read_text(encoding="utf-8")
+    assert "scriptorium --version" in body
