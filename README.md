@@ -14,6 +14,8 @@ When your committee asks *"how did you search?"*, you show them the file. When y
 
 Runs in **Claude Code**, **Claude Cowork**, or **Codex CLI**. No new subscription — it rides the Claude or ChatGPT plan you already have.
 
+Skill architecture follows the **[Superpowers](https://github.com/obra/superpowers)** pattern by Jesse Vincent — self-contained skill folders that Claude loads on demand.
+
 ---
 
 ## Contents
@@ -323,32 +325,30 @@ NotebookLM is not listed as a state home because it doesn't expose the kind of s
 <summary><b>Claude Code (recommended)</b></summary>
 
 ```bash
-pip install scriptorium-cli
+pipx install scriptorium-cli
 ```
 
-Or from source:
-
-```bash
-git clone https://github.com/jerrymwolf/scriptorium.git
-cd scriptorium
-pip install -e .
-```
-
-Restart Claude Code, then in any session:
+In Claude Code:
 
 ```
-/lit-config              # one-time: set unpaywall_email and obsidian_vault
-/lit-review "your research question" --review-dir reviews/<slug>
+/plugin marketplace add Jerrymwolf/Scriptorium
+/plugin install scriptorium@scriptorium-local
+/lit-config
 ```
 
-Optional but recommended for publishing:
-
-```bash
-uv tool install notebooklm-mcp-cli
-nlm auth login
-```
+Then: `/lit-review "your research question" --review-dir reviews/<slug>`.
 
 </details>
+
+### Migrating from the pre-0.3.1 installer
+
+If you installed Scriptorium before v0.3.1 using the legacy shell script, remove the stale symlink first:
+
+```bash
+rm -rf ~/.claude/plugins/scriptorium
+```
+
+Then follow the install steps above.
 
 <details>
 <summary><b>Claude Cowork</b></summary>
