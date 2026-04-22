@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 MANIFEST = Path(".claude-plugin") / "plugin.json"
-CLAUDE_MD = Path(".claude-plugin") / "CLAUDE.md"
+CLAUDE_MD = Path("CLAUDE.md")
 
 
 def test_manifest_exists():

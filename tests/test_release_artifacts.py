@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def test_readme_names_scriptorium_cli_and_beta():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "pip install scriptorium-cli" in text
+    assert "pipx install scriptorium-cli" in text
     assert "beta" in text.lower()
 
 
