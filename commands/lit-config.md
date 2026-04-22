@@ -5,7 +5,7 @@ argument-hint: ""
 
 ## Preflight
 
-Run `scriptorium --version` first.
+Run `scriptorium version` first.
 
 If that command fails or is not on PATH, stop and tell the user exactly:
 `Scriptorium CLI is not on PATH. Run \`pipx install scriptorium-cli\`, restart Claude Code, then retry this command.`
