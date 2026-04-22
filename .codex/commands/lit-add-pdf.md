@@ -1,1 +1,1 @@
-../../.claude-plugin/commands/lit-add-pdf.md
+../../commands/lit-add-pdf.md

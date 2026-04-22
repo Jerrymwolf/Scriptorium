@@ -1,1 +1,1 @@
-../../.claude-plugin/commands/lit-deck.md
+../../commands/lit-deck.md

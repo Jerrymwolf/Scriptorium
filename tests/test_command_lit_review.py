@@ -1,6 +1,6 @@
 from pathlib import Path
 
-CMD = Path(".claude-plugin/commands/lit-review.md")
+CMD = Path("commands/lit-review.md")
 
 
 def test_command_exists():

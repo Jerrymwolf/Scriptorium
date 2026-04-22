@@ -1,1 +1,1 @@
-../../.claude-plugin/commands/scriptorium-setup.md
+../../commands/scriptorium-setup.md

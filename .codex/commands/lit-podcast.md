@@ -1,1 +1,1 @@
-../../.claude-plugin/commands/lit-podcast.md
+../../commands/lit-podcast.md

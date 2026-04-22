@@ -1,6 +1,6 @@
 from pathlib import Path
 
-SKILL = Path(".claude-plugin/skills/lit-synthesizing/SKILL.md")
+SKILL = Path("skills/lit-synthesizing/SKILL.md")
 
 
 def test_frontmatter():

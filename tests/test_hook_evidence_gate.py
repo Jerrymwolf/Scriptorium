@@ -11,7 +11,7 @@ import pytest
 from scriptorium.paths import resolve_review_dir
 from scriptorium.storage.evidence import EvidenceEntry, append_evidence
 
-HOOK = Path(".claude-plugin/hooks/evidence_gate.sh").resolve()
+HOOK = Path("hooks/evidence_gate.sh").resolve()
 
 
 pytestmark = pytest.mark.skipif(
@@ -97,7 +97,7 @@ def test_hook_tolerates_malformed_payload():
 
 
 def test_hooks_json_registers_post_tool_use_on_write_and_edit():
-    manifest = Path(".claude-plugin/hooks/hooks.json")
+    manifest = Path("hooks/hooks.json")
     assert manifest.exists()
     data = json.loads(manifest.read_text(encoding="utf-8"))
     assert "hooks" in data

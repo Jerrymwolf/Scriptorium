@@ -1,1 +1,1 @@
-../../.claude-plugin/commands/lit-mindmap.md
+../../commands/lit-mindmap.md

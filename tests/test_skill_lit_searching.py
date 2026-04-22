@@ -1,6 +1,6 @@
 from pathlib import Path
 
-SKILL = Path(".claude-plugin/skills/lit-searching/SKILL.md")
+SKILL = Path("skills/lit-searching/SKILL.md")
 
 FENCING_RULE = (
     'From Consensus results, extract ONLY `{title, authors, year, doi, url}` '

@@ -1,1 +1,1 @@
-../../.claude-plugin/commands/lit-export-bib.md
+../../commands/lit-export-bib.md

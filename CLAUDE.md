@@ -17,9 +17,11 @@ The `using-scriptorium` skill opens with a runtime probe and dispatches to the r
 ## Repository layout
 
 - `scriptorium/` — Python package (CLI only used in Claude Code)
-- `.claude-plugin/skills/` — portable prose skills (both runtimes)
-- `.claude-plugin/commands/` — slash commands (Claude Code only)
-- `.claude-plugin/hooks/` — PostToolUse hooks (Claude Code only)
+- `skills/` — portable prose skills (both runtimes)
+- `commands/` — slash commands (Claude Code only)
+- `hooks/` — PostToolUse hooks (Claude Code only)
+- `.claude-plugin/plugin.json` — plugin manifest
+- `.claude-plugin/marketplace.json` — marketplace manifest for `/plugin install scriptorium@scriptorium-local`
 
 ## When in doubt
 

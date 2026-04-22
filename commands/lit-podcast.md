@@ -16,5 +16,5 @@ Behind the scenes this calls `nlm audio create <notebook_id>`. Files from
 §9.4 upload order are sent to NotebookLM in this order: `overview.md`,
 `synthesis.md`, `contradictions.md`, `evidence.jsonl`, and direct-child PDFs.
 
-See `.claude-plugin/skills/publishing-to-notebooklm/SKILL.md` for full
+See `skills/publishing-to-notebooklm/SKILL.md` for full
 preconditions, the Cowork degradation block, and audit semantics.

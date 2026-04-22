@@ -1,8 +1,8 @@
 from pathlib import Path
 
-ADD_PDF = Path(".claude-plugin/commands/lit-add-pdf.md")
-SHOW_AUDIT = Path(".claude-plugin/commands/lit-show-audit.md")
-EXPORT_BIB = Path(".claude-plugin/commands/lit-export-bib.md")
+ADD_PDF = Path("commands/lit-add-pdf.md")
+SHOW_AUDIT = Path("commands/lit-show-audit.md")
+EXPORT_BIB = Path("commands/lit-export-bib.md")
 
 
 def _read(p: Path) -> str:

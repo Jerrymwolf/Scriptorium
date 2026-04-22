@@ -1,6 +1,6 @@
 from pathlib import Path
 
-SKILL = Path(".claude-plugin/skills/lit-contradiction-check/SKILL.md")
+SKILL = Path("skills/lit-contradiction-check/SKILL.md")
 
 
 def test_frontmatter():

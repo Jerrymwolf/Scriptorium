@@ -4,8 +4,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC_SKILLS="$ROOT/.claude-plugin/skills"
-SRC_COMMANDS="$ROOT/.claude-plugin/commands"
+SRC_SKILLS="$ROOT/skills"
+SRC_COMMANDS="$ROOT/commands"
 DST_SKILLS="$ROOT/.codex/skills"
 DST_COMMANDS="$ROOT/.codex/commands"
 
@@ -20,7 +20,7 @@ if [ -d "$SRC_SKILLS" ]; then
   for dir in "$SRC_SKILLS"/*/; do
     [ -d "$dir" ] || continue
     name="$(basename "$dir")"
-    ln -sfn "../../.claude-plugin/skills/$name" "$DST_SKILLS/$name"
+    ln -sfn "../../skills/$name" "$DST_SKILLS/$name"
   done
 fi
 
@@ -29,7 +29,7 @@ if [ -d "$SRC_COMMANDS" ]; then
   for f in "$SRC_COMMANDS"/*.md; do
     [ -f "$f" ] || continue
     name="$(basename "$f")"
-    ln -sfn "../../.claude-plugin/commands/$name" "$DST_COMMANDS/$name"
+    ln -sfn "../../commands/$name" "$DST_COMMANDS/$name"
   done
 fi
 

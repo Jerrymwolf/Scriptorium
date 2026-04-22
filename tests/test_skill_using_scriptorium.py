@@ -1,7 +1,7 @@
 """Verbatim-content test for using-scriptorium."""
 from pathlib import Path
 
-SKILL = Path(".claude-plugin/skills/using-scriptorium/SKILL.md")
+SKILL = Path("skills/using-scriptorium/SKILL.md")
 
 
 def test_skill_exists():

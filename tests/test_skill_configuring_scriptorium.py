@@ -1,6 +1,6 @@
 from pathlib import Path
 
-SKILL = Path(".claude-plugin/skills/configuring-scriptorium/SKILL.md")
+SKILL = Path("skills/configuring-scriptorium/SKILL.md")
 
 
 def test_skill_exists():

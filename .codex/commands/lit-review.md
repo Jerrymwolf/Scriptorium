@@ -1,1 +1,1 @@
-../../.claude-plugin/commands/lit-review.md
+../../commands/lit-review.md

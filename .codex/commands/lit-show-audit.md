@@ -1,1 +1,1 @@
-../../.claude-plugin/commands/lit-show-audit.md
+../../commands/lit-show-audit.md

@@ -1,1 +1,1 @@
-../../.claude-plugin/commands/lit-config.md
+../../commands/lit-config.md
