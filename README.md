@@ -141,7 +141,6 @@ Disagreement becomes a discussion-chapter asset instead of a buried contradictio
 git clone https://github.com/jerrymwolf/scriptorium.git
 cd scriptorium
 pip install -e .
-./scripts/install_plugin.sh
 
 # 2. One-time config
 scriptorium config set unpaywall_email you@university.edu

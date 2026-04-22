@@ -20,6 +20,10 @@ def test_install_script_wraps_scriptorium_init():
     assert "scriptorium init" in text
 
 
+def test_legacy_plugin_installer_is_gone():
+    assert not Path("scripts/install_plugin.sh").exists()
+
+
 def test_obsidian_integration_doc_mentions_portability_tradeoff():
     text = (ROOT / "docs" / "obsidian-integration.md").read_text(encoding="utf-8")
     assert "not self-contained" in text

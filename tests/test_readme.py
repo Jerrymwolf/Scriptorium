@@ -2,7 +2,6 @@
 """README content test — locks in the Superpowers credit, the install
 surface, the dual-runtime framing, and the defect-fix #8 anti-pattern.
 """
-import os
 from pathlib import Path
 
 README = Path(__file__).parent.parent / "README.md"
@@ -28,10 +27,10 @@ def test_dual_runtime_framing():
     assert "cowork" in text
 
 
-def test_cc_install_uses_pip_and_installer_script():
-    text = README.read_text(encoding="utf-8")
-    assert "pip install" in text
-    assert "install_plugin.sh" in text
+def test_readme_has_no_legacy_installer_reference():
+    body = README.read_text(encoding="utf-8")
+    assert "install_plugin.sh" not in body
+    assert "not yet on PyPI" not in body
 
 
 def test_cowork_install_lists_connectors():
@@ -66,7 +65,6 @@ def test_develop_and_license_sections_present():
     assert "## License" in text or "### License" in text
 
 
-def test_install_plugin_script_exists_and_executable():
+def test_install_plugin_script_is_gone():
     script = Path(__file__).parent.parent / "scripts/install_plugin.sh"
-    assert script.exists()
-    assert os.access(script, os.X_OK), "install_plugin.sh not executable"
+    assert not script.exists()
