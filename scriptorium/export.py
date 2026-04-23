@@ -25,6 +25,7 @@ _INLINE_RE = re.compile(
     r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[A-Za-z0-9_\-]+:[^\]]+\])"
 )
 _CITATION_RE = re.compile(r"\[([A-Za-z0-9_\-]+):([^\]]+)\]")
+_LINK_RE = re.compile(r"\[[^\]]+\]\([^)]+\)")
 
 
 def render_overview_docx(md_path: Path, docx_path: Path, corpus_path: Path) -> None:
@@ -35,7 +36,15 @@ def render_overview_docx(md_path: Path, docx_path: Path, corpus_path: Path) -> N
     papers_dir = corpus_path.parent.parent / "sources" / "papers"
     ctx = {"corpus": corpus, "papers_dir": papers_dir, "misses": []}
     doc = Document()
-    for block in _blocks(body):
+    for kind, block in _blocks(body):
+        if kind == "fence":
+            for line in block:
+                if line.strip().startswith("```"):
+                    continue
+                p = doc.add_paragraph(line)
+                for r in p.runs:
+                    r.font.name = "Consolas"
+            continue
         _render_block(doc, block, ctx)
     doc.save(str(docx_path))
 
@@ -48,19 +57,39 @@ def _strip_frontmatter(text: str) -> str:
     return text
 
 
-def _blocks(body: str) -> list[list[str]]:
-    """Split body into blocks separated by blank lines."""
-    blocks: list[list[str]] = []
+def _blocks(body: str) -> list[tuple[str, list[str]]]:
+    """Return list of (kind, lines). kind is 'fence' or 'prose'."""
+    blocks: list[tuple[str, list[str]]] = []
     current: list[str] = []
+    in_fence = False
+    fence_lines: list[str] = []
     for line in body.splitlines():
+        if line.strip().startswith("```"):
+            if not in_fence:
+                if current:
+                    blocks.append(("prose", current))
+                    current = []
+                in_fence = True
+                fence_lines = [line]
+            else:
+                fence_lines.append(line)
+                blocks.append(("fence", fence_lines))
+                fence_lines = []
+                in_fence = False
+            continue
+        if in_fence:
+            fence_lines.append(line)
+            continue
         if line.strip() == "":
             if current:
-                blocks.append(current)
+                blocks.append(("prose", current))
                 current = []
         else:
             current.append(line)
+    if in_fence and fence_lines:
+        blocks.append(("fence", fence_lines))
     if current:
-        blocks.append(current)
+        blocks.append(("prose", current))
     return blocks
 
 
@@ -111,23 +140,37 @@ def _render_table(doc, block: list[str]) -> None:
 
 
 def _emit_runs(paragraph, text: str, ctx: dict) -> None:
-    parts = _INLINE_RE.split(text)
+    # Mask inline markdown links so citations inside them are not enriched.
+    masks: dict[str, str] = {}
+
+    def _mask(m):
+        token = f"\x00LINK{len(masks)}\x00"
+        masks[token] = m.group(0)
+        return token
+
+    def _restore(s: str) -> str:
+        for token, original in masks.items():
+            s = s.replace(token, original)
+        return s
+
+    masked = _LINK_RE.sub(_mask, text)
+    parts = _INLINE_RE.split(masked)
     for part in parts:
         if not part:
             continue
         if part.startswith("**") and part.endswith("**"):
-            run = paragraph.add_run(part[2:-2])
+            run = paragraph.add_run(_restore(part[2:-2]))
             run.bold = True
         elif part.startswith("*") and part.endswith("*") and len(part) > 2:
-            run = paragraph.add_run(part[1:-1])
+            run = paragraph.add_run(_restore(part[1:-1]))
             run.italic = True
         elif part.startswith("`") and part.endswith("`"):
-            run = paragraph.add_run(part[1:-1])
+            run = paragraph.add_run(_restore(part[1:-1]))
             run.font.name = "Consolas"
         elif _CITATION_RE.fullmatch(part):
             _emit_citation(paragraph, part, ctx)
         else:
-            paragraph.add_run(part)
+            paragraph.add_run(_restore(part))
 
 
 def _load_corpus(corpus_path: Path) -> dict[str, dict]:
