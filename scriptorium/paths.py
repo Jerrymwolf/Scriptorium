@@ -99,14 +99,10 @@ class ReviewPaths:
     def lock(self) -> Path:
         return self.scriptorium_dir / "lock"
 
-    # Retained for backwards API — remove if no callers.
+    # Active caller: scriptorium/reasoning/bib_export.py
     @property
     def bib(self) -> Path:
         return self.sources_dir / "bib"
-
-    @property
-    def outputs(self) -> Path:
-        return self.root / "outputs"
 
 
 def resolve_review_dir(

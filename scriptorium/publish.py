@@ -171,12 +171,12 @@ def render_cowork_block(*, notebook_name: str, review_dir: Path, sources: tuple[
     return COWORK_BLOCK_TEMPLATE.format(notebook_name=notebook_name, file_list=file_list)
 
 
-REQUIRED_SOURCE_FILES = {
-    "overview": "overview.md",
-    "synthesis": "synthesis.md",
-    "contradictions": "contradictions.md",
-    "evidence": "evidence.jsonl",
-}
+REQUIRED_SOURCE_KEYS: tuple[str, ...] = (
+    "overview",
+    "synthesis",
+    "contradictions",
+    "evidence",
+)
 
 
 def ensure_required_files(*, review_dir: Path, sources: tuple[str, ...]) -> None:
