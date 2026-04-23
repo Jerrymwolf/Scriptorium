@@ -130,7 +130,7 @@ def regenerate_overview(
 
     archived_path: Optional[Path] = None
     if paths.overview.exists():
-        paths.overview_archive.mkdir(exist_ok=True)
+        paths.overview_archive.mkdir(parents=True, exist_ok=True)
         stamp = now.replace(":", "").replace("-", "")
         archived_path = paths.overview_archive / f"{stamp}.md"
         archived_path.write_text(

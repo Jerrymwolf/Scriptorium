@@ -132,20 +132,21 @@ docs/publishing-notebooklm.md for the template.
 
 
 def collect_source_files(*, review_dir: Path, sources: tuple[str, ...]) -> list[Path]:
+    paths = ReviewPaths(root=review_dir)
     out: list[Path] = []
-    mapping = {
-        "overview": "overview.md",
-        "synthesis": "synthesis.md",
-        "contradictions": "contradictions.md",
-        "evidence": "evidence.jsonl",
+    prose_map = {
+        "overview": paths.overview,
+        "synthesis": paths.synthesis,
+        "contradictions": paths.contradictions,
+        "evidence": paths.evidence,
     }
     for token in ("overview", "synthesis", "contradictions", "evidence"):
         if token in sources:
-            p = review_dir / mapping[token]
+            p = prose_map[token]
             if p.exists():
                 out.append(p)
     if "pdfs" in sources:
-        pdfs_dir = review_dir / "pdfs"
+        pdfs_dir = paths.pdfs
         if pdfs_dir.is_dir():
             for pdf in sorted(pdfs_dir.glob("*.pdf")):
                 if pdf.is_symlink():
@@ -153,7 +154,7 @@ def collect_source_files(*, review_dir: Path, sources: tuple[str, ...]) -> list[
                 if pdf.is_file():
                     out.append(pdf)
     if "stubs" in sources:
-        papers_dir = review_dir / "papers"
+        papers_dir = paths.papers
         if papers_dir.is_dir():
             for md in sorted(papers_dir.glob("*.md")):
                 out.append(md)
@@ -179,11 +180,18 @@ REQUIRED_SOURCE_FILES = {
 
 
 def ensure_required_files(*, review_dir: Path, sources: tuple[str, ...]) -> None:
+    paths = ReviewPaths(root=review_dir)
+    prose_map = {
+        "overview": paths.overview,
+        "synthesis": paths.synthesis,
+        "contradictions": paths.contradictions,
+        "evidence": paths.evidence,
+    }
     missing: list[str] = []
     for token in sources:
-        fname = REQUIRED_SOURCE_FILES.get(token)
-        if fname and not (review_dir / fname).exists():
-            missing.append(fname)
+        p = prose_map.get(token)
+        if p is not None and not p.exists():
+            missing.append(p.name)
     if missing:
         raise PublishError(
             f"review directory is incomplete: expected {missing} at "

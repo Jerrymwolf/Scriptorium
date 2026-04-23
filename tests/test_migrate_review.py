@@ -14,8 +14,10 @@ def _legacy_review(tmp_path: Path) -> Path:
         "Caffeine helps WM [nehlig2010:page:4].", encoding="utf-8"
     )
     (root / "contradictions.md").write_text("", encoding="utf-8")
-    (root / "audit.md").write_text("# PRISMA Audit Trail\n\n", encoding="utf-8")
-    (root / "evidence.jsonl").write_text(
+    (root / "audit").mkdir(parents=True)
+    (root / "audit" / "audit.md").write_text("# PRISMA Audit Trail\n\n", encoding="utf-8")
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "evidence.jsonl").write_text(
         json.dumps({"paper_id": "nehlig2010", "locator": "page:4",
                     "claim": "helps", "quote": "helps", "direction": "positive",
                     "concept": "wm"}) + "\n",

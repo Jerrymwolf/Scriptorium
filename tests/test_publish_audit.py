@@ -9,9 +9,11 @@ from scriptorium.nlm import NotebookCreated, NlmResult
 def _review(tmp_path: Path) -> Path:
     root = tmp_path / "reviews" / "caffeine-wm"
     root.mkdir(parents=True)
-    for name in ("overview.md", "synthesis.md", "contradictions.md", "evidence.jsonl"):
+    for name in ("overview.md", "synthesis.md", "contradictions.md"):
         (root / name).write_text("x" * 10, encoding="utf-8")
-    (root / "pdfs").mkdir()
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "evidence.jsonl").write_text("x" * 10, encoding="utf-8")
+    (root / "sources" / "pdfs").mkdir(parents=True)
     return root
 
 
@@ -25,11 +27,11 @@ def test_success_writes_audit_markdown_and_jsonl(mock_nlm, tmp_path):
     out = io.StringIO(); err = io.StringIO()
     rc = main(["publish", "--review-dir", str(root), "--generate", "audio", "--json"], stdout=out, stderr=err)
     assert rc == 0
-    md = (root / "audit.md").read_text(encoding="utf-8")
+    md = (root / "audit" / "audit.md").read_text(encoding="utf-8")
     assert "## Publishing" in md
     assert '**Notebook:** "Caffeine Wm" (id: `abc123`)' in md
     assert "**Status:** success" in md
-    rows = [json.loads(l) for l in (root / "audit.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [json.loads(l) for l in (root / "audit" / "audit.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
     pr = [r for r in rows if r["phase"] == "publishing"]
     assert pr and pr[-1]["status"] == "success"
     assert pr[-1]["details"]["notebook_id"] == "abc123"

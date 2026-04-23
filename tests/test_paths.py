@@ -7,17 +7,18 @@ def test_resolve_review_dir_uses_explicit_path(tmp_path):
     target.mkdir()
     paths = resolve_review_dir(explicit=target)
     assert paths.root == target
-    assert paths.evidence == target / "evidence.jsonl"
-    assert paths.audit_md == target / "audit.md"
+    assert paths.evidence == target / "data" / "evidence.jsonl"
+    assert paths.audit_md == target / "audit" / "audit.md"
 
 
 def test_resolve_review_dir_creates_subdirs(tmp_path):
     target = tmp_path / "my-review"
     paths = resolve_review_dir(explicit=target, create=True)
-    assert (target / "pdfs").is_dir()
-    assert (target / "extracts").is_dir()
-    assert (target / "outputs").is_dir()
-    assert (target / "bib").is_dir()
+    assert (target / "sources" / "pdfs").is_dir()
+    assert (target / "sources" / "papers").is_dir()
+    assert (target / "data" / "extracts").is_dir()
+    assert (target / "audit" / "overview-archive").is_dir()
+    assert (target / ".scriptorium").is_dir()
 
 
 def test_resolve_review_dir_defaults_to_cwd(tmp_path, monkeypatch):

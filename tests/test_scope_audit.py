@@ -36,7 +36,7 @@ def test_scope_approved_audit_entry_shape(tmp_path: Path):
 
     entries = [
         json.loads(line)
-        for line in (tmp_path / "audit.jsonl").read_text().splitlines()
+        for line in (tmp_path / "audit" / "audit.jsonl").read_text().splitlines()
         if line.strip()
     ]
     assert len(entries) == 1

@@ -14,7 +14,8 @@ def _seed_review(tmp_path: Path) -> Path:
         "Caffeine helps WM [[nehlig2010#p-4]].", encoding="utf-8"
     )
     (root / "contradictions.md").write_text("", encoding="utf-8")
-    (root / "evidence.jsonl").write_text(
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "evidence.jsonl").write_text(
         json.dumps({"paper_id": "nehlig2010", "locator": "page:4",
                     "claim": "caffeine helps", "quote": "helps",
                     "direction": "positive", "concept": "wm"}) + "\n",
@@ -41,7 +42,7 @@ def test_regeneration_archives_previous(tmp_path):
     root = _seed_review(tmp_path)
     main(["regenerate-overview", str(root)], stdout=io.StringIO(), stderr=io.StringIO())
     main(["regenerate-overview", str(root)], stdout=io.StringIO(), stderr=io.StringIO())
-    archive = root / "overview-archive"
+    archive = root / "audit" / "overview-archive"
     assert archive.is_dir()
     assert list(archive.glob("*.md"))
 

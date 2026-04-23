@@ -10,10 +10,13 @@ from scriptorium.nlm import NotebookCreated, NlmResult
 def _review(tmp_path: Path) -> Path:
     root = tmp_path / "reviews" / "caffeine-wm"
     root.mkdir(parents=True)
-    for name in ("overview.md", "synthesis.md", "contradictions.md", "evidence.jsonl"):
+    for name in ("overview.md", "synthesis.md", "contradictions.md"):
         (root / name).write_text("x", encoding="utf-8")
-    (root / "pdfs").mkdir()
-    (root / "audit.md").write_text(
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "evidence.jsonl").write_text("x", encoding="utf-8")
+    (root / "sources" / "pdfs").mkdir(parents=True)
+    (root / "audit").mkdir(parents=True)
+    (root / "audit" / "audit.md").write_text(
         "# PRISMA Audit Trail\n\n## Publishing\n\n"
         "### 2026-04-01T00:00:00Z — NotebookLM\n\n"
         '**Notebook:** "Caffeine Wm" (id: `prev`)\n',

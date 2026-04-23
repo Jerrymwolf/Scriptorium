@@ -44,6 +44,7 @@ def test_rejects_invalid_status(tmp_path):
 
 def test_corrupt_jsonl_raises_and_preserves_file(tmp_path):
     paths = _paths(tmp_path)
+    paths.audit_dir.mkdir(parents=True, exist_ok=True)
     paths.audit_jsonl.write_text("{not valid json\n", encoding="utf-8")
     with pytest.raises(AuditCorruptError):
         load_audit(paths)
@@ -53,6 +54,7 @@ def test_corrupt_jsonl_raises_and_preserves_file(tmp_path):
 
 def test_append_after_corruption_uses_recovery_file(tmp_path):
     paths = _paths(tmp_path)
+    paths.audit_dir.mkdir(parents=True, exist_ok=True)
     paths.audit_jsonl.write_text("{not valid json\n", encoding="utf-8")
     append_audit(
         paths,

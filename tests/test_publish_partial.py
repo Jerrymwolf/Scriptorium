@@ -10,9 +10,11 @@ from scriptorium.nlm import NlmCommandError, NlmTimeoutError, NlmResult, Noteboo
 def _review(tmp_path: Path) -> Path:
     root = tmp_path / "reviews" / "caffeine-wm"
     root.mkdir(parents=True)
-    for name in ("overview.md", "synthesis.md", "contradictions.md", "evidence.jsonl"):
+    for name in ("overview.md", "synthesis.md", "contradictions.md"):
         (root / name).write_text("x" * 10, encoding="utf-8")
-    (root / "pdfs").mkdir()
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "evidence.jsonl").write_text("x" * 10, encoding="utf-8")
+    (root / "sources" / "pdfs").mkdir(parents=True)
     return root
 
 
@@ -29,7 +31,7 @@ def test_upload_failure_exits_e_upload_with_partial_audit(mock_nlm, tmp_path):
     out = io.StringIO(); err = io.StringIO()
     rc = main(["publish", "--review-dir", str(root)], stdout=out, stderr=err)
     assert rc == EXIT_CODES["E_NLM_UPLOAD"]
-    rows = [json.loads(l) for l in (root / "audit.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [json.loads(l) for l in (root / "audit" / "audit.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
     pr = [r for r in rows if r["phase"] == "publishing"]
     assert pr[-1]["status"] == "partial"
     assert pr[-1]["details"]["failing_command"]

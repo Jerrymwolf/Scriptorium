@@ -15,12 +15,13 @@ def fixtures_dir() -> Path:
 
 @pytest.fixture
 def review_dir(tmp_path: Path) -> Path:
-    """Fresh per-review directory, isolated to tmp_path."""
+    """Fresh per-review directory, isolated to tmp_path (new hybrid layout)."""
     d = tmp_path / "review"
-    (d / "pdfs").mkdir(parents=True)
-    (d / "extracts").mkdir()
-    (d / "outputs").mkdir()
-    (d / "bib").mkdir()
+    (d / "sources" / "pdfs").mkdir(parents=True)
+    (d / "sources" / "papers").mkdir(parents=True)
+    (d / "data" / "extracts").mkdir(parents=True)
+    (d / "audit" / "overview-archive").mkdir(parents=True)
+    (d / ".scriptorium").mkdir(parents=True)
     return d
 
 

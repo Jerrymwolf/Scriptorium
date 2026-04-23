@@ -18,21 +18,14 @@ from typing import Optional
 class ReviewPaths:
     root: Path
 
+    # Prose deliverables (root)
     @property
-    def evidence(self) -> Path:
-        return self.root / "evidence.jsonl"
+    def overview(self) -> Path:
+        return self.root / "overview.md"
 
     @property
-    def audit_md(self) -> Path:
-        return self.root / "audit.md"
-
-    @property
-    def audit_jsonl(self) -> Path:
-        return self.root / "audit.jsonl"
-
-    @property
-    def corpus(self) -> Path:
-        return self.root / "corpus.jsonl"
+    def overview_docx(self) -> Path:
+        return self.root / "overview.docx"
 
     @property
     def synthesis(self) -> Path:
@@ -43,44 +36,77 @@ class ReviewPaths:
         return self.root / "contradictions.md"
 
     @property
-    def overview(self) -> Path:
-        return self.root / "overview.md"
-
-    @property
-    def overview_archive(self) -> Path:
-        return self.root / "overview-archive"
+    def scope(self) -> Path:
+        return self.root / "scope.json"
 
     @property
     def references_bib(self) -> Path:
         return self.root / "references.bib"
 
+    # Sources bucket
     @property
-    def scope(self) -> Path:
-        return self.root / "scope.json"
-
-    @property
-    def papers(self) -> Path:
-        return self.root / "papers"
+    def sources_dir(self) -> Path:
+        return self.root / "sources"
 
     @property
     def pdfs(self) -> Path:
-        return self.root / "pdfs"
+        return self.sources_dir / "pdfs"
+
+    @property
+    def papers(self) -> Path:
+        return self.sources_dir / "papers"
+
+    # Data bucket
+    @property
+    def data_dir(self) -> Path:
+        return self.root / "data"
+
+    @property
+    def evidence(self) -> Path:
+        return self.data_dir / "evidence.jsonl"
+
+    @property
+    def corpus(self) -> Path:
+        return self.data_dir / "corpus.jsonl"
 
     @property
     def extracts(self) -> Path:
-        return self.root / "extracts"
+        return self.data_dir / "extracts"
+
+    # Audit bucket
+    @property
+    def audit_dir(self) -> Path:
+        return self.root / "audit"
+
+    @property
+    def audit_md(self) -> Path:
+        return self.audit_dir / "audit.md"
+
+    @property
+    def audit_jsonl(self) -> Path:
+        return self.audit_dir / "audit.jsonl"
+
+    @property
+    def overview_archive(self) -> Path:
+        return self.audit_dir / "overview-archive"
+
+    # Internal state
+    @property
+    def scriptorium_dir(self) -> Path:
+        return self.root / ".scriptorium"
+
+    @property
+    def lock(self) -> Path:
+        return self.scriptorium_dir / "lock"
+
+    # Retained for backwards API — remove if no callers.
+    @property
+    def bib(self) -> Path:
+        return self.sources_dir / "bib"
 
     @property
     def outputs(self) -> Path:
         return self.root / "outputs"
-
-    @property
-    def bib(self) -> Path:
-        return self.root / "bib"
-
-    @property
-    def lock(self) -> Path:
-        return self.root / ".scriptorium.lock"
 
 
 def resolve_review_dir(
@@ -111,6 +137,12 @@ def resolve_review_dir(
         root = Path(env).resolve(strict=False) if env else base_cwd.resolve(strict=False)
 
     if create:
-        for sub in ("pdfs", "extracts", "outputs", "bib", "papers"):
+        for sub in (
+            "sources/pdfs",
+            "sources/papers",
+            "data/extracts",
+            "audit/overview-archive",
+            ".scriptorium",
+        ):
             (root / sub).mkdir(parents=True, exist_ok=True)
     return ReviewPaths(root=root)
