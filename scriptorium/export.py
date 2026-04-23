@@ -18,6 +18,25 @@ _HEADING_RE = re.compile(r"^(#{1,3})\s+(.*)$")
 _BULLET_RE = re.compile(r"^[-*+]\s+(.*)$")
 _ORDERED_RE = re.compile(r"^\d+\.\s+(.*)$")
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$")
+_INLINE_RE = re.compile(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)")
+
+
+def _emit_runs(paragraph, text: str) -> None:
+    parts = _INLINE_RE.split(text)
+    for part in parts:
+        if not part:
+            continue
+        if part.startswith("**") and part.endswith("**"):
+            run = paragraph.add_run(part[2:-2])
+            run.bold = True
+        elif part.startswith("*") and part.endswith("*") and len(part) > 2:
+            run = paragraph.add_run(part[1:-1])
+            run.italic = True
+        elif part.startswith("`") and part.endswith("`"):
+            run = paragraph.add_run(part[1:-1])
+            run.font.name = "Consolas"
+        else:
+            paragraph.add_run(part)
 
 
 def render_overview_docx(md_path: Path, docx_path: Path, corpus_path: Path) -> None:
@@ -65,19 +84,22 @@ def _render_block(doc, block: list[str]) -> None:
 
     if all(_BULLET_RE.match(line) for line in block):
         for line in block:
-            doc.add_paragraph(_BULLET_RE.match(line).group(1), style="List Bullet")
+            p = doc.add_paragraph(style="List Bullet")
+            _emit_runs(p, _BULLET_RE.match(line).group(1))
         return
 
     if all(_ORDERED_RE.match(line) for line in block):
         for line in block:
-            doc.add_paragraph(_ORDERED_RE.match(line).group(1), style="List Number")
+            p = doc.add_paragraph(style="List Number")
+            _emit_runs(p, _ORDERED_RE.match(line).group(1))
         return
 
     if len(block) >= 2 and _TABLE_SEP_RE.match(block[1]) and "|" in block[0]:
         _render_table(doc, block)
         return
 
-    doc.add_paragraph(" ".join(line.strip() for line in block))
+    para = doc.add_paragraph()
+    _emit_runs(para, " ".join(line.strip() for line in block))
 
 
 def _split_table_row(line: str) -> list[str]:
