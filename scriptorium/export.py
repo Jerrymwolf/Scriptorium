@@ -15,6 +15,8 @@ from docx import Document
 
 
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.*)$")
+_BULLET_RE = re.compile(r"^[-*+]\s+(.*)$")
+_ORDERED_RE = re.compile(r"^\d+\.\s+(.*)$")
 
 
 def render_overview_docx(md_path: Path, docx_path: Path, corpus_path: Path) -> None:
@@ -53,9 +55,21 @@ def _blocks(body: str) -> list[list[str]]:
 
 def _render_block(doc, block: list[str]) -> None:
     first = block[0]
+
     m = _HEADING_RE.match(first)
     if m and len(block) == 1:
         level = len(m.group(1))
         doc.add_heading(m.group(2).strip(), level=level)
         return
+
+    if all(_BULLET_RE.match(line) for line in block):
+        for line in block:
+            doc.add_paragraph(_BULLET_RE.match(line).group(1), style="List Bullet")
+        return
+
+    if all(_ORDERED_RE.match(line) for line in block):
+        for line in block:
+            doc.add_paragraph(_ORDERED_RE.match(line).group(1), style="List Number")
+        return
+
     doc.add_paragraph(" ".join(line.strip() for line in block))
