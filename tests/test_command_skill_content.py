@@ -44,6 +44,13 @@ def test_lit_searching_requires_scope_json():
     assert "lit-scoping" in txt, "lit-searching does not mention auto-trigger"
 
 
+def test_using_scriptorium_mentions_lit_scoping():
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    txt = (repo / "skills" / "using-scriptorium" / "SKILL.md").read_text()
+    assert "lit-scoping" in txt
+
+
 def test_verified_commands_appear_in_skills():
     repo = Path(__file__).resolve().parent.parent
     skills = (repo / ".claude-plugin" / "skills" / "publishing-to-notebooklm"
