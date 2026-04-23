@@ -143,17 +143,18 @@ Disagreement becomes a discussion-chapter asset instead of a buried contradictio
 ## Your first review in 10 minutes <a id="your-first-review-in-10-minutes"></a>
 
 ```bash
-# 1. Install (Claude Code path shown; see Install for other surfaces)
-git clone https://github.com/jerrymwolf/scriptorium.git
-cd scriptorium
-pip install -e .
-
-# 2. One-time config
-scriptorium config set unpaywall_email you@university.edu
-scriptorium config set obsidian_vault ~/vault     # optional but recommended
+# 1. Install the CLI
+pipx install scriptorium-cli
 ```
 
-Restart Claude Code, then in any session:
+In Claude Code — two commands, run once:
+
+```
+/marketplace add Jerrymwolf/Scriptorium
+/plugin install scriptorium@Jerrymwolf-Scriptorium
+```
+
+Then run `/scriptorium-setup` to configure. Restart Claude Code, then in any session:
 
 ```
 /lit-review "does caffeine improve working memory in healthy adults?" \
@@ -335,10 +336,11 @@ pipx install scriptorium-cli
 In Claude Code:
 
 ```
-/plugin marketplace add Jerrymwolf/Scriptorium
-/plugin install scriptorium@scriptorium-local
-/lit-config
+/marketplace add Jerrymwolf/Scriptorium
+/plugin install scriptorium@Jerrymwolf-Scriptorium
 ```
+
+Then run `/scriptorium-setup` to configure, `/lit-config` to verify.
 
 Then: `/lit-review "your research question" --review-dir reviews/<slug>`.
 
@@ -456,7 +458,7 @@ BibTeX:
   title   = {Scriptorium: a literature review workflow you can defend},
   year    = {2026},
   version = {0.3},
-  url     = {https://github.com/jerrymwolf/scriptorium}
+  url     = {https://github.com/Jerrymwolf/Scriptorium}
 }
 ```
 
