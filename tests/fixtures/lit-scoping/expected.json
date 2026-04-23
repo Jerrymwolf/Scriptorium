@@ -1,0 +1,35 @@
+{
+  "vague": {
+    "tier1_fires_all": true,
+    "tier2_fires_all": true,
+    "tier3_offered_as_menu": true,
+    "expected_soft_warnings": []
+  },
+  "semi": {
+    "tier1_fires_for": ["purpose"],
+    "tier2_fires_for": [
+      "population",
+      "methodology",
+      "corpus_target",
+      "publication_types",
+      "depth"
+    ],
+    "tier3_offered_as_menu": true,
+    "expected_soft_warnings": []
+  },
+  "precise": {
+    "tier1_fires_for": [],
+    "tier2_fires_for": [],
+    "tier3_offered_as_menu": true,
+    "expected_soft_warnings": []
+  },
+  "contradictory": {
+    "tier1_fires_for": [],
+    "tier2_fires_for": ["publication_types", "depth"],
+    "tier3_offered_as_menu": true,
+    "expected_soft_warnings": [
+      "systematic_review_with_hard_cap",
+      "rcts_outside_medical_fields"
+    ]
+  }
+}
