@@ -54,5 +54,6 @@ def test_failed_draft_written_on_lint_failure(tmp_path, monkeypatch):
     err = io.StringIO()
     rc = main(["regenerate-overview", str(root)], stdout=io.StringIO(), stderr=err)
     assert rc == EXIT_CODES["E_OVERVIEW_FAILED"]
-    failed = list(root.glob("overview.failed.*.md"))
+    failed = list((root / "audit" / "overview-archive").glob("overview.failed.*.md"))
     assert failed
+    assert list(root.glob("overview.failed.*.md")) == []

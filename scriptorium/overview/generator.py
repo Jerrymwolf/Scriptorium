@@ -139,6 +139,44 @@ def regenerate_overview(
 
     text = write_frontmatter(fm.to_dict(), body=body)
     paths.overview.write_text(text, encoding="utf-8")
+
+    from scriptorium.export import render_overview_docx
+    from scriptorium.storage.audit import AuditEntry, append_audit
+
+    source_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    try:
+        result = render_overview_docx(
+            paths.overview, paths.overview_docx, paths.corpus
+        )
+        append_audit(
+            paths,
+            AuditEntry(
+                phase="overview",
+                action="overview_rendered",
+                status="success",
+                details={
+                    "wrote": ["overview.md", "overview.docx"],
+                    "source_sha256": source_sha,
+                    "citation_misses": result.citation_misses,
+                    "corpus_unavailable": result.corpus_unavailable,
+                },
+            ),
+        )
+    except Exception as exc:
+        append_audit(
+            paths,
+            AuditEntry(
+                phase="overview",
+                action="overview_docx_failed",
+                status="failure",
+                details={
+                    "wrote": ["overview.md"],
+                    "source_sha256": source_sha,
+                    "error": str(exc)[:200],
+                },
+            ),
+        )
+
     return OverviewResult(
         path=paths.overview,
         archived_path=archived_path,
