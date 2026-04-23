@@ -58,9 +58,18 @@ scriptorium regenerate-overview <review-dir> [--model <name>] [--seed <int>] [--
 ```
 
 Archive-on-regenerate writes previous drafts to
-`<review-dir>/overview-archive/<timestamp>.md`. On lint/cite-check failure,
-the failed draft goes to `<review-dir>/overview.failed.<timestamp>.md` and
+`<review-dir>/audit/overview-archive/<timestamp>.md`. On lint/cite-check
+failure, the failed draft goes to
+`<review-dir>/audit/overview-archive/overview.failed.<timestamp>.md` and
 the command exits `E_OVERVIEW_FAILED`.
+
+**Word export:** the overview is written as both `overview.md` and
+`overview.docx`. The Word document is regenerated from the markdown every
+run — it's a derivative, not a source. Edit `overview.md`; `overview.docx`
+will refresh next time. `[paper_id:locator]` citations resolve to
+`(Author Year, locator)` with a DOI → URL → local-stub hyperlink (in that
+precedence order). Docx render is best-effort: failure emits an
+`overview_docx_failed` audit event but never blocks the `.md` write.
 
 Length target is 300 words. The lint warns above 400 words but does not
 fail on length alone.

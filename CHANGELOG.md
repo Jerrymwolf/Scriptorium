@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Added
+- Automatic `overview.docx` render alongside `overview.md` on every overview
+  generation. Citations resolve to `(Author Year, locator)` with a
+  DOI → URL → local-stub hyperlink (in that precedence order). Docx render
+  is best-effort; failure emits an `overview_docx_failed` audit event but
+  never blocks the `.md` write.
+
+### Changed
+- Review folder layout reorganized into a hybrid structure: deliverables at
+  root (`overview.md`, `overview.docx`, `synthesis.md`, `contradictions.md`,
+  `scope.json`, `references.bib`); inputs under `sources/`; machine-readable
+  data under `data/`; audit trail and failed-overview archive under
+  `audit/`; internal state under `.scriptorium/`.
+- Failed overview drafts now land in `audit/overview-archive/` instead of
+  the review root.
+
+### Dependencies
+- Added `python-docx>=1.1,<2`.
+
 ## 0.3.1 — 2026-04-22
 
 ### Fixed

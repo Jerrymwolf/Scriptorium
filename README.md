@@ -76,6 +76,7 @@ Dissertation writers use it to build chapters that survive defense. Consultants 
 ## What you get <a id="what-you-get"></a>
 
 - **A defensible synthesis.** Every sentence in `synthesis.md` traces to a paper and page. If it's not in the evidence, it's not in the draft.
+- **A Word-ready overview.** The overview is written as both Markdown and `overview.docx`, so you can hand the Word document to a committee member who doesn't use Obsidian. Citations become `(Author Year, locator)` with DOI hyperlinks.
 - **A committee-ready audit trail.** `audit.md` is a timestamped log of every query, screen decision, extraction call, and — if you publish — every upload event. Your methods chapter has a receipt.
 - **A clean reference library.** BibTeX and RIS exports drop straight into Zotero, Mendeley, EndNote, or Paperpile.
 - **The PDFs you actually read.** Scriptorium fetches open-access full text (Unpaywall, arXiv, PMC) and ingests ones you drop in. Your corpus lives where you work.
