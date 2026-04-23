@@ -8,9 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from scriptorium.export import render_overview_docx
 from scriptorium.frontmatter import ReviewArtifactFrontmatter, write_frontmatter
 from scriptorium.overview.linter import REQUIRED_SECTIONS, lint_overview
 from scriptorium.paths import ReviewPaths
+from scriptorium.storage.audit import AuditEntry, append_audit
 from scriptorium.storage.evidence import load_evidence
 
 
@@ -139,9 +141,6 @@ def regenerate_overview(
 
     text = write_frontmatter(fm.to_dict(), body=body)
     paths.overview.write_text(text, encoding="utf-8")
-
-    from scriptorium.export import render_overview_docx
-    from scriptorium.storage.audit import AuditEntry, append_audit
 
     source_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
     try:
