@@ -150,6 +150,7 @@ def regenerate_overview(
 def write_failed_draft(paths: ReviewPaths, body: str) -> Path:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     stamp = now.replace(":", "").replace("-", "")
-    p = paths.root / f"overview.failed.{stamp}.md"
+    paths.overview_archive.mkdir(parents=True, exist_ok=True)
+    p = paths.overview_archive / f"overview.failed.{stamp}.md"
     p.write_text(body, encoding="utf-8")
     return p
