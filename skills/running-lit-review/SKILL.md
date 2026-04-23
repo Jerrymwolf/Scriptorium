@@ -9,14 +9,11 @@ This skill runs the end-to-end review pipeline for a research question. It is **
 
 **Fire using-scriptorium first.** Before doing anything else, invoke `using-scriptorium` so the runtime probe has run, the state-adapter vocabulary is loaded, and the three disciplines are primed. Then return here.
 
-## Inputs you need before starting
+## Step 0 — Scope the review
 
-Ask the user — in one message, not a sequence — for any of these that were not stated:
+Before any phase runs, fire `lit-scoping`. It produces a validated `scope.json` that every downstream phase reads. If `scope.json` already exists in the review root, `lit-scoping` offers to resume, edit, or discard it. Do NOT ask the user for research question, criteria, year range, or publishing intent yourself — `lit-scoping` owns that conversation. Publishing intent specifically is captured via `lit-scoping`'s Tier 3 "output intent" dimension.
 
-- **Research question** (required; usually already given).
-- **Inclusion / exclusion criteria**: year range, language, must-include keywords, must-exclude keywords. Defaults if they shrug: `year_min=2015`, `language=["en"]`, must-include derived from the question, no must-exclude.
-- **Review root**: where state should live. In CC this is `cwd` unless `--review-dir` overrides. In Cowork this is the NotebookLM notebook (create one if none exists) — fall back to Drive folder or a Notion page as the state-adapter dictates.
-- **Publishing intent**: podcast / slides / infographic / video, or none. Default to asking at the end — publishing is optional and runs *after* contradiction-check, never before.
+After `lit-scoping` returns with an approved scope, continue with the phase sequence below.
 
 ## Phase sequence (authoritative)
 

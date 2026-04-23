@@ -87,7 +87,7 @@ CC enforces these via dataclasses in the CLI (`scriptorium evidence add` accepts
 1. Announce: "Using `using-scriptorium` to route this session."
 2. Run the probe, record `RUNTIME` + `STATE_BACKEND`.
 3. Brief the user in one sentence: "CC mode — using the `scriptorium` CLI and the filesystem at `<cwd>`." *or* "Cowork mode — using Consensus + PubMed for search, NotebookLM notebook `<id>` for state."
-4. Ask for the research question if they haven't provided one.
+4. If the user has not yet scoped the review, fire `lit-scoping` to produce the `scope.json` artifact. `lit-scoping` handles the research question, purpose, field, methodology, year range, corpus target, and publication types. Do not ask for these fields directly from this skill — the scoping conversation is owned by `lit-scoping`.
 5. Hand off to the phase-appropriate skill.
 
 ## v0.3 additions

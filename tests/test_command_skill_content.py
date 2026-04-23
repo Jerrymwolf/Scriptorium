@@ -28,6 +28,29 @@ def test_no_forbidden_tokens_in_plugin_surface():
     assert problems == [], f"stale nlm tokens: {problems}"
 
 
+def test_running_lit_review_dispatches_to_lit_scoping():
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    txt = (repo / "skills" / "running-lit-review" / "SKILL.md").read_text()
+    assert "lit-scoping" in txt, "running-lit-review does not invoke lit-scoping"
+    assert "Inputs you need before starting" not in txt, "old flat intake block still present"
+
+
+def test_lit_searching_requires_scope_json():
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    txt = (repo / "skills" / "lit-searching" / "SKILL.md").read_text()
+    assert "scope.json" in txt, "lit-searching does not read scope.json"
+    assert "lit-scoping" in txt, "lit-searching does not mention auto-trigger"
+
+
+def test_using_scriptorium_mentions_lit_scoping():
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    txt = (repo / "skills" / "using-scriptorium" / "SKILL.md").read_text()
+    assert "lit-scoping" in txt
+
+
 def test_verified_commands_appear_in_skills():
     repo = Path(__file__).resolve().parent.parent
     skills = (repo / ".claude-plugin" / "skills" / "publishing-to-notebooklm"

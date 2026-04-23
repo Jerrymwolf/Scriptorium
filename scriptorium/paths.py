@@ -55,6 +55,10 @@ class ReviewPaths:
         return self.root / "references.bib"
 
     @property
+    def scope(self) -> Path:
+        return self.root / "scope.json"
+
+    @property
     def papers(self) -> Path:
         return self.root / "papers"
 

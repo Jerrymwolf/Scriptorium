@@ -1,0 +1,298 @@
+"""Tests for scriptorium.scope — scope.json v1 schema."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from scriptorium.scope import (
+    SCHEMA_VERSION,
+    VALID_PURPOSES,
+    VALID_METHODOLOGIES,
+    VALID_PUB_TYPES,
+    VALID_DEPTHS,
+    VALID_PARADIGMS,
+    Scope,
+    AnchorPaper,
+    ScopeValidationError,
+    load_scope,
+    save_scope,
+    validate_scope_dict,
+)
+
+
+def test_schema_version_is_1():
+    assert SCHEMA_VERSION == 1
+
+
+def test_valid_purposes_set():
+    assert VALID_PURPOSES == {
+        "dissertation", "grant", "narrative", "systematic", "scoping"
+    }
+
+
+def test_valid_methodologies_set():
+    assert VALID_METHODOLOGIES == {
+        "any", "qualitative", "quantitative", "RCT", "mixed"
+    }
+
+
+def test_valid_publication_types_set():
+    assert VALID_PUB_TYPES == {
+        "peer-reviewed", "preprints", "grey", "dissertations"
+    }
+
+
+def test_valid_depths_set():
+    assert VALID_DEPTHS == {"exhaustive", "representative"}
+
+
+def test_valid_paradigms_set():
+    assert VALID_PARADIGMS == {
+        "positivist", "interpretivist", "critical", "pragmatist"
+    }
+
+
+def test_anchor_paper_defaults():
+    ap = AnchorPaper(raw="Ryan & Deci 2000")
+    assert ap.doi is None
+    assert ap.resolved is False
+
+
+def test_scope_requires_and_optional_fields():
+    scope = Scope(
+        research_question="Does X affect Y?",
+        purpose="dissertation",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[2018, 2026],
+        corpus_target=50,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+    )
+    assert scope.population is None
+    assert scope.conceptual_frame is None
+    assert scope.anchor_papers == []
+    assert scope.output_intent is None
+    assert scope.paradigm is None
+    assert scope.soft_warnings == []
+    assert scope.schema_version == 1
+    assert scope.created_at == ""
+
+
+MINIMAL_VALID = {
+    "schema_version": 1,
+    "created_at": "2026-04-23T10:30:00Z",
+    "research_question": "Does X affect Y?",
+    "purpose": "dissertation",
+    "fields": ["psychology"],
+    "population": None,
+    "methodology": "any",
+    "year_range": [2018, 2026],
+    "corpus_target": 50,
+    "publication_types": ["peer-reviewed"],
+    "depth": "representative",
+    "conceptual_frame": None,
+    "anchor_papers": [],
+    "output_intent": None,
+    "known_gaps_focus": False,
+    "paradigm": None,
+    "soft_warnings": [],
+}
+
+
+def test_validate_minimal_valid_passes():
+    validate_scope_dict(MINIMAL_VALID)  # no raise
+
+
+def test_validate_missing_required_field_raises():
+    data = dict(MINIMAL_VALID)
+    del data["research_question"]
+    with pytest.raises(ScopeValidationError, match="research_question"):
+        validate_scope_dict(data)
+
+
+def test_validate_empty_research_question_raises():
+    data = dict(MINIMAL_VALID, research_question="   ")
+    with pytest.raises(ScopeValidationError, match="research_question"):
+        validate_scope_dict(data)
+
+
+def test_validate_bad_purpose_raises():
+    data = dict(MINIMAL_VALID, purpose="phd-thesis")
+    with pytest.raises(ScopeValidationError, match="purpose"):
+        validate_scope_dict(data)
+
+
+def test_validate_bad_methodology_raises():
+    data = dict(MINIMAL_VALID, methodology="survey")
+    with pytest.raises(ScopeValidationError, match="methodology"):
+        validate_scope_dict(data)
+
+
+def test_validate_bad_depth_raises():
+    data = dict(MINIMAL_VALID, depth="shallow")
+    with pytest.raises(ScopeValidationError, match="depth"):
+        validate_scope_dict(data)
+
+
+def test_validate_bad_publication_type_raises():
+    data = dict(MINIMAL_VALID, publication_types=["books"])
+    with pytest.raises(ScopeValidationError, match="publication_types"):
+        validate_scope_dict(data)
+
+
+def test_validate_bad_paradigm_raises():
+    data = dict(MINIMAL_VALID, paradigm="postmodern")
+    with pytest.raises(ScopeValidationError, match="paradigm"):
+        validate_scope_dict(data)
+
+
+def test_validate_null_paradigm_allowed():
+    data = dict(MINIMAL_VALID, paradigm=None)
+    validate_scope_dict(data)  # no raise
+
+
+def test_validate_empty_fields_list_raises():
+    data = dict(MINIMAL_VALID, fields=[])
+    with pytest.raises(ScopeValidationError, match="fields"):
+        validate_scope_dict(data)
+
+
+def test_validate_year_range_wrong_length_raises():
+    data = dict(MINIMAL_VALID, year_range=[2020])
+    with pytest.raises(ScopeValidationError, match="year_range"):
+        validate_scope_dict(data)
+
+
+def test_validate_year_range_null_null_allowed():
+    data = dict(MINIMAL_VALID, year_range=[None, None])
+    validate_scope_dict(data)
+
+
+def test_validate_year_range_open_ended_allowed():
+    data = dict(MINIMAL_VALID, year_range=[2015, None])
+    validate_scope_dict(data)
+
+
+def test_validate_corpus_target_exhaustive_string_allowed():
+    data = dict(MINIMAL_VALID, corpus_target="exhaustive")
+    validate_scope_dict(data)
+
+
+def test_validate_corpus_target_negative_raises():
+    data = dict(MINIMAL_VALID, corpus_target=-5)
+    with pytest.raises(ScopeValidationError, match="corpus_target"):
+        validate_scope_dict(data)
+
+
+def test_validate_wrong_schema_version_raises():
+    data = dict(MINIMAL_VALID, schema_version=2)
+    with pytest.raises(ScopeValidationError, match="schema_version"):
+        validate_scope_dict(data)
+
+
+def test_validate_anchor_paper_missing_raw_raises():
+    data = dict(MINIMAL_VALID, anchor_papers=[{"doi": None, "resolved": False}])
+    with pytest.raises(ScopeValidationError, match="anchor_papers"):
+        validate_scope_dict(data)
+
+
+def test_save_then_load_roundtrip(tmp_path: Path):
+    scope = Scope(
+        research_question="Does caffeine affect memory?",
+        purpose="dissertation",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[2018, 2026],
+        corpus_target=50,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+        anchor_papers=[AnchorPaper(raw="Ryan & Deci 2000")],
+    )
+    path = tmp_path / "scope.json"
+    save_scope(path, scope)
+
+    loaded = load_scope(path)
+    assert loaded.research_question == "Does caffeine affect memory?"
+    assert loaded.anchor_papers[0].raw == "Ryan & Deci 2000"
+    assert loaded.schema_version == 1
+
+
+def test_save_writes_created_at_if_missing(tmp_path: Path):
+    scope = Scope(
+        research_question="Q",
+        purpose="narrative",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[None, None],
+        corpus_target=25,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+    )
+    assert scope.created_at == ""
+    path = tmp_path / "scope.json"
+    save_scope(path, scope)
+    on_disk = json.loads(path.read_text())
+    assert on_disk["created_at"].endswith("Z")
+
+
+def test_save_preserves_existing_created_at(tmp_path: Path):
+    scope = Scope(
+        research_question="Q",
+        purpose="narrative",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[None, None],
+        corpus_target=25,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+        created_at="2020-01-01T00:00:00Z",
+    )
+    path = tmp_path / "scope.json"
+    save_scope(path, scope)
+    on_disk = json.loads(path.read_text())
+    assert on_disk["created_at"] == "2020-01-01T00:00:00Z"
+
+
+def test_load_raises_on_invalid_json(tmp_path: Path):
+    path = tmp_path / "scope.json"
+    path.write_text("{not json")
+    with pytest.raises(ScopeValidationError, match="invalid JSON"):
+        load_scope(path)
+
+
+def test_load_raises_on_schema_violation(tmp_path: Path):
+    path = tmp_path / "scope.json"
+    bad = dict(MINIMAL_VALID, purpose="book")
+    path.write_text(json.dumps(bad))
+    with pytest.raises(ScopeValidationError, match="purpose"):
+        load_scope(path)
+
+
+def test_load_missing_file_raises_filenotfound(tmp_path: Path):
+    with pytest.raises(FileNotFoundError):
+        load_scope(tmp_path / "missing.json")
+
+
+def test_save_validates_before_writing(tmp_path: Path):
+    scope = Scope(
+        research_question="",  # invalid
+        purpose="narrative",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[None, None],
+        corpus_target=25,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+    )
+    path = tmp_path / "scope.json"
+    with pytest.raises(ScopeValidationError):
+        save_scope(path, scope)
+    assert not path.exists()

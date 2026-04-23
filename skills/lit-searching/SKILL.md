@@ -5,6 +5,20 @@ description: Use when the user asks to find/search/discover papers on a topic, w
 
 # Literature Searching
 
+## Precondition — scope.json is required
+
+`lit-searching` reads `<review_root>/scope.json` at startup. If it does not exist, STOP and invoke `lit-scoping` first — do not ask the user for query, year range, or criteria yourself. Those values come from the scope artifact.
+
+Fields consumed from scope.json:
+
+- `research_question` — seed for query construction
+- `fields` — source selection (medicine → PubMed; psychology → OpenAlex/Scholar)
+- `methodology` — filter after retrieval
+- `year_range` — applied to every source query
+- `corpus_target` — governs per-source `--limit`
+- `publication_types` — source enablement (preprints → arXiv)
+- `anchor_papers` — resolve first; they seed related-work expansion
+
 The goal is a **deduped corpus** of candidate papers saved as `corpus.jsonl`. Every paper carries a stable `paper_id` (the source's native id, e.g. OpenAlex `W…`), canonical metadata, and an initial status of `candidate`. Screening comes next; this skill only widens the net.
 
 ## Source matrix
@@ -33,7 +47,7 @@ Corpus-building turns are tool-to-tool: you read Consensus, write to the state a
 
 ## Workflow — CC path
 
-1. Ask (or confirm) the search query + year range + must-include/exclude keywords.
+1. Load `scope.json`. Use `research_question` and `fields` to construct the initial query. Use `year_range` and `publication_types` to configure source filters. Use `corpus_target` to set per-source limits. If `scope.json` is missing, STOP and invoke `lit-scoping`.
 2. For each enabled source:
    - Run `scriptorium search --query "<Q>" --source openalex --limit 50`
    - Parse the JSON stdout; collect `Paper` rows.
