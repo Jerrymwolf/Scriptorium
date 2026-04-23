@@ -32,3 +32,9 @@ def test_resolve_review_dir_honors_env_var(tmp_path, monkeypatch):
     monkeypatch.setenv("SCRIPTORIUM_REVIEW_DIR", str(target))
     paths = resolve_review_dir(explicit=None)
     assert paths.root == target
+
+
+def test_review_paths_has_scope_property(tmp_path):
+    from scriptorium.paths import ReviewPaths
+    paths = ReviewPaths(root=tmp_path)
+    assert paths.scope == tmp_path / "scope.json"
