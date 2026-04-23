@@ -1,6 +1,9 @@
 """Tests for scriptorium.scope — scope.json v1 schema."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from scriptorium.scope import (
@@ -195,3 +198,101 @@ def test_validate_anchor_paper_missing_raw_raises():
     data = dict(MINIMAL_VALID, anchor_papers=[{"doi": None, "resolved": False}])
     with pytest.raises(ScopeValidationError, match="anchor_papers"):
         validate_scope_dict(data)
+
+
+def test_save_then_load_roundtrip(tmp_path: Path):
+    scope = Scope(
+        research_question="Does caffeine affect memory?",
+        purpose="dissertation",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[2018, 2026],
+        corpus_target=50,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+        anchor_papers=[AnchorPaper(raw="Ryan & Deci 2000")],
+    )
+    path = tmp_path / "scope.json"
+    save_scope(path, scope)
+
+    loaded = load_scope(path)
+    assert loaded.research_question == "Does caffeine affect memory?"
+    assert loaded.anchor_papers[0].raw == "Ryan & Deci 2000"
+    assert loaded.schema_version == 1
+
+
+def test_save_writes_created_at_if_missing(tmp_path: Path):
+    scope = Scope(
+        research_question="Q",
+        purpose="narrative",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[None, None],
+        corpus_target=25,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+    )
+    assert scope.created_at == ""
+    path = tmp_path / "scope.json"
+    save_scope(path, scope)
+    on_disk = json.loads(path.read_text())
+    assert on_disk["created_at"].endswith("Z")
+
+
+def test_save_preserves_existing_created_at(tmp_path: Path):
+    scope = Scope(
+        research_question="Q",
+        purpose="narrative",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[None, None],
+        corpus_target=25,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+        created_at="2020-01-01T00:00:00Z",
+    )
+    path = tmp_path / "scope.json"
+    save_scope(path, scope)
+    on_disk = json.loads(path.read_text())
+    assert on_disk["created_at"] == "2020-01-01T00:00:00Z"
+
+
+def test_load_raises_on_invalid_json(tmp_path: Path):
+    path = tmp_path / "scope.json"
+    path.write_text("{not json")
+    with pytest.raises(ScopeValidationError, match="invalid JSON"):
+        load_scope(path)
+
+
+def test_load_raises_on_schema_violation(tmp_path: Path):
+    path = tmp_path / "scope.json"
+    bad = dict(MINIMAL_VALID, purpose="book")
+    path.write_text(json.dumps(bad))
+    with pytest.raises(ScopeValidationError, match="purpose"):
+        load_scope(path)
+
+
+def test_load_missing_file_raises_filenotfound(tmp_path: Path):
+    with pytest.raises(FileNotFoundError):
+        load_scope(tmp_path / "missing.json")
+
+
+def test_save_validates_before_writing(tmp_path: Path):
+    scope = Scope(
+        research_question="",  # invalid
+        purpose="narrative",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[None, None],
+        corpus_target=25,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+    )
+    path = tmp_path / "scope.json"
+    with pytest.raises(ScopeValidationError):
+        save_scope(path, scope)
+    assert not path.exists()

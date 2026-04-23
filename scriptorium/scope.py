@@ -6,7 +6,7 @@ shape in a way existing files can't satisfy.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -146,9 +146,37 @@ def validate_scope_dict(data: dict) -> None:
             )
 
 
-def load_scope(path: Path) -> Scope:
-    raise NotImplementedError
+def _scope_to_dict(scope: Scope) -> dict:
+    return asdict(scope)
+
+
+def _scope_from_dict(data: dict) -> Scope:
+    anchors = [AnchorPaper(**a) for a in data.get("anchor_papers", [])]
+    return Scope(**{**data, "anchor_papers": anchors})
 
 
 def save_scope(path: Path, scope: Scope) -> None:
-    raise NotImplementedError
+    """Validate and write scope.json atomically.
+
+    created_at is populated if empty. The file is written via a temp file
+    and renamed to avoid torn writes.
+    """
+    if not scope.created_at:
+        scope.created_at = _utc_z_now()
+    data = _scope_to_dict(scope)
+    validate_scope_dict(data)  # raises before any write
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+    tmp.replace(path)
+
+
+def load_scope(path: Path) -> Scope:
+    """Read and validate scope.json."""
+    text = path.read_text(encoding="utf-8")  # FileNotFoundError propagates
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ScopeValidationError(f"invalid JSON in {path}: {e}") from e
+    validate_scope_dict(data)
+    return _scope_from_dict(data)
