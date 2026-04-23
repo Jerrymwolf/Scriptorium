@@ -1,9 +1,6 @@
 """Tests for scriptorium.scope — scope.json v1 schema."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import pytest
 
 from scriptorium.scope import (
@@ -52,3 +49,31 @@ def test_valid_paradigms_set():
     assert VALID_PARADIGMS == {
         "positivist", "interpretivist", "critical", "pragmatist"
     }
+
+
+def test_anchor_paper_defaults():
+    ap = AnchorPaper(raw="Ryan & Deci 2000")
+    assert ap.doi is None
+    assert ap.resolved is False
+
+
+def test_scope_requires_and_optional_fields():
+    scope = Scope(
+        research_question="Does X affect Y?",
+        purpose="dissertation",
+        fields=["psychology"],
+        methodology="any",
+        year_range=[2018, 2026],
+        corpus_target=50,
+        publication_types=["peer-reviewed"],
+        depth="representative",
+        known_gaps_focus=False,
+    )
+    assert scope.population is None
+    assert scope.conceptual_frame is None
+    assert scope.anchor_papers == []
+    assert scope.output_intent is None
+    assert scope.paradigm is None
+    assert scope.soft_warnings == []
+    assert scope.schema_version == 1
+    assert scope.created_at == ""

@@ -6,11 +6,10 @@ shape in a way existing files can't satisfy.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Any
 
 
 SCHEMA_VERSION = 1
