@@ -1,4 +1,4 @@
-# Clean Review Layout + Microsoft Office Export
+# Clean Review Layout + Overview as Word Document
 
 **Date:** 2026-04-23
 **Status:** Design approved, pending implementation plan.
@@ -6,19 +6,35 @@
 
 ## Problem
 
-The v0.3 review folder layout dumps every artifact — prose deliverables, JSONL data, PDFs, per-paper stubs, failed overview retries, audit logs — into a single flat root. Opening a review in Finder or Obsidian shows ~15 files and folders at the top level with no clear grouping. Failed overview attempts (`overview.failed.YYYYMMDDTHHMMSSZ.md`) land at root and accumulate. Collaborators who need Word or Excel versions have no path — Scriptorium writes only `.md` and `.jsonl`.
+Two issues with the current review folder:
 
-Two asks:
+1. **Messy layout.** The v0.3 review root mixes prose deliverables, JSONL data, PDFs, per-paper stubs, failed overview retries, and audit logs — ~15 items at the top level with no clear grouping. Failed overviews (`overview.failed.YYYYMMDDTHHMMSSZ.md`) accumulate at root.
+2. **Overview is `.md` only.** Most users who receive a Scriptorium review don't know how to read markdown. The overview is the artifact they actually open — it must be a Word document. Obsidian users still need the `.md`.
 
-1. **Cleaner layout.** Deliverables visible at root, supporting files bucketed, failed retries archived.
-2. **Microsoft Office export.** `.docx` for prose, `.xlsx` for data, alongside the existing markdown/JSONL (not replacing them — Obsidian integration must keep working).
+## Scope (what this spec is and is not)
+
+**In scope:**
+- Revised folder layout (Hybrid: deliverables at root, sources/data/audit bucketed).
+- Automatic `overview.docx` dual-write inside the existing overview generation step.
+- Citation enrichment when rendering the docx.
+- One-shot manual migration of the existing `values-review/` folder, performed by Claude in a single session.
+
+**Out of scope (explicitly deferred until there is a real request):**
+- `scriptorium export` CLI subcommand.
+- `lit-export-office` skill.
+- `scriptorium migrate` CLI command.
+- `.xlsx` export for `evidence.jsonl` / `corpus.jsonl`.
+- `.docx` for `synthesis.md` and `contradictions.md`.
+- Any natural-language export skill.
+
+Deferring these keeps v1 small, keeps the user-facing surface zero (everything happens automatically), and avoids shipping code paths no one has asked for.
 
 ## Constraints
 
 - **Primary runtime is Cowork.** No external binaries (pandoc is out). Pure-Python pip dependencies only.
-- **Evidence-first discipline is preserved.** Every export appends to `audit.jsonl`; citations in `.docx` must remain traceable to `corpus.jsonl` + `evidence.jsonl`.
-- **Obsidian keeps working.** `.md` files stay at their current names; `.docx` is additive.
-- **One-way export.** `.docx` → `.md` import is out of scope. Word is a handoff format.
+- **Evidence-first discipline is preserved.** Every overview render appends to `audit.jsonl`; citations in the `.docx` must remain traceable to `corpus.jsonl` + `evidence.jsonl`.
+- **Obsidian keeps working.** `overview.md` stays at its current name and location; `.docx` is additive.
+- **Zero user action required.** A non-terminal user should never need to run a command, remember a flag, or invoke a skill. Overview generation produces both files; that's it.
 
 ## Design
 
@@ -27,11 +43,9 @@ Two asks:
 ```
 <review>/
 ├── overview.md              # deliverables at root
-├── overview.docx            # Office siblings, created on demand, side-by-side
-├── synthesis.md
-├── synthesis.docx
-├── contradictions.md
-├── contradictions.docx
+├── overview.docx            # Word sibling, written automatically alongside overview.md
+├── synthesis.md             # stays .md for v1 (deferred)
+├── contradictions.md        # stays .md for v1 (deferred)
 ├── scope.json               # visible: user-editable scope contract
 ├── references.bib           # derived export; root is where citation managers look
 │
@@ -41,9 +55,7 @@ Two asks:
 │
 ├── data/                    # machine-readable working set
 │   ├── evidence.jsonl
-│   ├── evidence.xlsx        # Excel sibling, on demand
 │   ├── corpus.jsonl
-│   ├── corpus.xlsx
 │   └── extracts/
 │
 ├── audit/
@@ -56,122 +68,100 @@ Two asks:
 ```
 
 **Rationale:**
-
-- Office files sit next to their source (`overview.md` + `overview.docx` at root; `evidence.jsonl` + `evidence.xlsx` in `data/`). Collaborators who open the folder see the relationship without navigating into an `exports/` subfolder.
+- `overview.md` and `overview.docx` sit side-by-side at root. Anyone opening the folder sees the Word document immediately; Obsidian users see the `.md`.
 - `scope.json` stays visible at root because it is user-editable.
 - `references.bib` stays at root because Zotero/BibTeX conventions look there.
 - `sources/` contains only inputs. `data/` contains only machine-readable working set. `audit/` contains trail plus failed-overview archive. No overlap.
-- `.scriptorium/` holds only the lock file. Nothing the user ever touches.
-- No auto-generated `README.md`. Avoids collision with user-authored notes; Obsidian surfaces structure natively.
+- `.scriptorium/` holds only the lock file.
+- No auto-generated `README.md`.
 
-### 2. Export surface
+### 2. Overview dual-write
 
-**CLI:**
+The existing `generating-overview` skill (and its underlying `scriptorium/overview/` module) currently writes `overview.md`. After this change, it also writes `overview.docx` in the same step, using the same content.
 
-```
-scriptorium export [--format docx|xlsx|all]
-                   [--target overview|synthesis|contradictions|evidence|corpus|all]
-                   [--review <path>]
-                   [--dry-run]
-```
-
-- Review resolution order: `--review` flag, then `SCRIPTORIUM_REVIEW_DIR` env var, then cwd. Matches existing `resolve_review_dir()` in `paths.py`.
-- Missing source files (e.g. no `synthesis.md` yet) → logged and skipped, never an error.
-- `--dry-run` prints the planned writes without touching the filesystem.
-- `.docx` / `.xlsx` are always regenerated from source. User edits live in `.md` / `.jsonl`. No round-trip import.
-- Idempotent: re-running overwrites existing siblings.
-
-**Skill (`scriptorium:lit-export-office`):**
-
-- Natural-language wrapper: triggers on phrases like "give me the Word version," "export for my committee," "make a Word doc of the overview."
-- Resolves review dir via the same order as the CLI.
-- Shells out to `scriptorium export` with the resolved flags.
-- Reports absolute paths of files written and anything skipped.
+**Where it lives:**
+- `scriptorium/overview/` — add a post-write hook in the overview generator that calls `render_overview_docx(md_path, docx_path, corpus_path)` immediately after the `.md` is finalized.
+- Failure to render the `.docx` never fails the overview step. The `.md` is the source of truth; the `.docx` is a best-effort derivative. On docx-render failure: log to `audit.jsonl` with `event: "overview_docx_failed"` and move on. The `.md` is already saved.
+- `generating-overview` skill text picks up a one-line note: "We also write `overview.docx` automatically — most users will open that."
 
 **Conversion module (`scriptorium/export.py`):**
-
-- `md_to_docx(md_path, docx_path, corpus_path)` — uses `python-docx`. Walks the known Scriptorium markdown shape (H1/H2/H3 headings, paragraphs, bullet/ordered lists, tables, inline bold/italic/code) — not arbitrary markdown.
-- `jsonl_to_xlsx(jsonl_path, xlsx_path, schema)` — uses `openpyxl`.
+- `render_overview_docx(md_path, docx_path, corpus_path)` — uses `python-docx`. Walks the known overview markdown shape (H1/H2/H3 headings, paragraphs, bullet/ordered lists, tables, inline bold/italic/code). Scriptorium generates its own markdown, so the converter only has to handle shapes Scriptorium itself emits — not arbitrary markdown.
+- Always regenerated from `overview.md`. User edits live in `.md`. The `.docx` is overwritten on every overview run.
 
 **Citation enrichment:**
+- For each `[paper_id:locator]` in `overview.md`, the converter looks up `paper_id` in `data/corpus.jsonl`.
+- Renders in the docx as `(First-author Year, p. locator)`, with a hyperlink to the paper stub in `sources/papers/<paper_id>.md`.
+- Corpus lookup miss → leaves the raw `[paper_id:locator]` text in the docx and records the miss in the audit event. No silent drops.
 
-- For each `[paper_id:locator]` in a prose file, `md_to_docx` looks up `paper_id` in `data/corpus.jsonl`.
-- Renders as `(First-author Year, p. locator)` with a hyperlink to the paper stub in `sources/papers/<paper_id>.md`.
-- Lookup miss → leaves raw `[paper_id:locator]` in the docx and logs a warning to the audit event. No silent drops.
-
-**Stable xlsx schemas (declared as module constants):**
-
-- `EVIDENCE_COLUMNS = ["paper_id", "locator", "claim", "quote", "tags", "extracted_at", ...]`
-- `CORPUS_COLUMNS = ["paper_id", "title", "authors", "year", "venue", "doi", "url", ...]`
-- Unknown keys in a row trail in sorted order after the declared columns.
-- Header row: bold, frozen. Column widths computed from max cell length, capped at 80 chars.
-
-**Audit event schema:**
-
+**Audit event schema** (appended on each overview render):
 ```json
 {
   "ts": "2026-04-23T15:02:11Z",
-  "event": "export",
-  "targets": ["overview", "evidence"],
-  "formats": ["docx", "xlsx"],
-  "sources": {
-    "overview.md": "<sha256>",
-    "data/evidence.jsonl": "<sha256>"
-  },
-  "written": ["overview.docx", "data/evidence.xlsx"],
-  "skipped": ["synthesis.md (not found)"],
+  "event": "overview_rendered",
+  "wrote": ["overview.md", "overview.docx"],
+  "source_sha256": "<overview.md sha>",
   "citation_misses": []
 }
 ```
 
-Future `scriptorium verify` can prove: "this `.docx` was generated from this version of the `.md`."
-
-**Dependencies added to `pyproject.toml`:** `python-docx`, `openpyxl`. Both pure Python, Cowork-safe.
-
-### 3. Migration
-
+On docx failure:
+```json
+{
+  "ts": "...",
+  "event": "overview_docx_failed",
+  "wrote": ["overview.md"],
+  "error": "<one-line error message>"
+}
 ```
-scriptorium migrate [--review <path>] [--dry-run] [--apply]
-```
 
-- Detects old-layout review by the presence of `evidence.jsonl` or `audit.jsonl` at the review root.
-- `--dry-run` (default) prints the move plan: `audit.md` → `audit/audit.md`, `pdfs/` → `sources/pdfs/`, `overview.failed.*.md` → `audit/overview-archive/`, `evidence.jsonl` → `data/evidence.jsonl`, etc.
-- `--apply` executes the moves. Idempotent — re-running is a no-op. Non-destructive: never deletes, only moves. If a target path already exists, the move for that file is skipped and logged.
-- Appends one `migrate` event to `audit.jsonl` with before/after paths for every rename.
-- No auto-migration on other `scriptorium` subcommands. Migration is always explicit.
+**Dependencies** added to `pyproject.toml`: `python-docx`. Pure Python, Cowork-safe.
 
-### 4. Code changes
+### 3. Code changes
 
-- **`scriptorium/paths.py`** — update `ReviewPaths` so existing properties resolve to the new locations (e.g. `evidence` → `data/evidence.jsonl`; `audit_md` → `audit/audit.md`; `overview_archive` → `audit/overview-archive`; `pdfs` → `sources/pdfs`; `papers` → `sources/papers`; `extracts` → `data/extracts`). Add new properties where needed: `audit_dir`, `data_dir`, `sources_dir`, `scriptorium_dir`, `lock`. No renames — call sites keep working; the paths just move.
+- **`scriptorium/paths.py`** — update `ReviewPaths` so existing properties resolve to the new locations (`evidence` → `data/evidence.jsonl`, `audit_md` → `audit/audit.md`, `overview_archive` → `audit/overview-archive`, `pdfs` → `sources/pdfs`, `papers` → `sources/papers`, `extracts` → `data/extracts`). Add new helper properties where useful: `audit_dir`, `data_dir`, `sources_dir`, `scriptorium_dir`, `lock`, `overview_docx`. No renames — call sites keep working; paths just move.
 - **`scriptorium/storage/`** — update all writers to target the new paths via `ReviewPaths`.
-- **`scriptorium/export.py`** — new module containing `md_to_docx`, `jsonl_to_xlsx`, column-schema constants, and the `export` CLI subcommand entrypoint.
-- **`scriptorium/migrate.py`** — extend the existing migration module with the layout shift.
-- **`skills/lit-export-office/SKILL.md`** — new skill, runtime-agnostic prose wrapper that dispatches to the CLI in Claude Code or the equivalent shell-through mechanism in Cowork.
-- **`pyproject.toml`** — add `python-docx`, `openpyxl` to runtime deps.
-- **`CHANGELOG.md`** — entry for layout change + new export surface.
+- **`scriptorium/overview/`** — after `overview.md` is written, call `render_overview_docx` and append the audit event.
+- **`scriptorium/export.py`** — new module containing `render_overview_docx` and its helpers (heading/list/table walkers, citation enricher).
+- **`skills/generating-overview/SKILL.md`** — one-line addition noting that `.docx` is written automatically.
+- **`pyproject.toml`** — add `python-docx` to runtime deps.
+- **`CHANGELOG.md`** — entry for layout change + Word overview.
+- **`README.md`** — one-sentence mention in the features list: "The overview is written as both Markdown and Word, so you can hand the `.docx` to a committee member who doesn't use Obsidian."
+
+### 4. Migration of existing `values-review/`
+
+Performed manually by Claude in a single session, not shipped as a command:
+
+1. `mkdir -p values-review/{sources,data,audit,.scriptorium}`
+2. Move `values-review/pdfs/` → `values-review/sources/pdfs/`.
+3. Move `values-review/papers/` → `values-review/sources/papers/`.
+4. Move `values-review/evidence.jsonl` → `values-review/data/evidence.jsonl`.
+5. Move `values-review/corpus.jsonl` → `values-review/data/corpus.jsonl`.
+6. Move `values-review/extracts/` → `values-review/data/extracts/`.
+7. Move `values-review/audit.md` and `audit.jsonl` → `values-review/audit/`.
+8. Move `values-review/overview.failed.*.md` → `values-review/audit/overview-archive/`.
+9. The existing `bib/` and `outputs/` folders appear empty from the earlier listing; delete if empty, otherwise inspect and move contents to `sources/` or `audit/` as appropriate.
+10. Append a `migrated_layout` event to `audit/audit.jsonl` listing every rename.
+
+No files are deleted. The operation is idempotent — re-running it is a no-op.
 
 ### 5. Testing
 
 | Test | What it proves |
 |---|---|
-| `test_md_to_docx_shape.py` | Fixture `overview.md` → `.docx`; assert heading levels, bullets, ordered lists, tables, bold/italic/code render correctly via python-docx inspection. |
-| `test_citation_enrichment.py` | Hit path: `[paper_id:p.12]` + matching corpus row → `(Smith 2024, p. 12)` rendered with hyperlink to `sources/papers/<paper_id>.md`. Miss path: unknown `paper_id` left raw in docx and logged to audit. |
-| `test_jsonl_to_xlsx_schema.py` | Evidence/corpus fixtures → `.xlsx`; assert column order matches declared schema, unknown keys trail in sorted order, header row is frozen + bold. |
-| `test_export_audit_event.py` | Exports a fixture review; assert one audit event with correct targets/formats/sources sha256/written/skipped/citation_misses. |
-| `test_export_dry_run.py` | `--dry-run` writes nothing; stdout lists planned paths. |
-| `test_export_missing_targets.py` | Export `--target all` on a review missing `synthesis.md` → skipped entry in audit, other exports succeed. |
-| `test_migrate_dry_run_then_apply.py` | Fixture old-layout review; `--dry-run` prints moves; `--apply` executes; second `--apply` is a no-op; audit event present. |
-| `test_migrate_collision_safety.py` | Target path already exists → specific file skipped + logged, rest proceed. |
+| `test_overview_docx_shape.py` | Fixture `overview.md` → `.docx`; assert heading levels, bullets, ordered lists, tables, bold/italic/code render correctly via python-docx inspection. |
+| `test_citation_enrichment.py` | Hit path: `[paper_id:p.12]` + matching corpus row → `(Smith 2024, p. 12)` rendered with hyperlink to `sources/papers/<paper_id>.md`. Miss path: unknown `paper_id` left raw in docx and logged to the audit event. |
+| `test_overview_audit_event.py` | Overview run writes both files; one `overview_rendered` audit event with source sha256 and citation-miss list. |
+| `test_overview_docx_failure_isolation.py` | Inject a docx render failure; assert `.md` still saved, `overview_docx_failed` event appended, overview step returns success. |
 | `test_paths_new_layout.py` | `ReviewPaths.evidence` resolves to `data/evidence.jsonl`, `audit_md` to `audit/audit.md`, `pdfs` to `sources/pdfs`, etc. |
 
-All fixtures live under `tests/fixtures/exports/` and `tests/fixtures/migrate/`.
+All fixtures live under `tests/fixtures/overview/`.
 
 ## Non-goals
 
 - No `.docx` → `.md` import. Word is a one-way handoff format.
-- `scriptorium export` does not regenerate `references.bib` — that stays in `scriptorium:lit-export-bib`'s scope.
-- No auto-migration on unrelated `scriptorium` subcommands — `scriptorium migrate` is always explicit and opt-in.
-- No `README.md` auto-generation at review root.
+- No user-facing command or skill for export — overview dual-write is automatic and invisible.
+- No `.docx` for synthesis / contradictions, and no `.xlsx` for evidence / corpus. If a real user request arrives later, add them as separate specs.
+- No shipped migration command. The existing `values-review/` is migrated once, manually.
 
 ## Open questions
 
