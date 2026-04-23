@@ -36,6 +36,14 @@ def test_running_lit_review_dispatches_to_lit_scoping():
     assert "Inputs you need before starting" not in txt, "old flat intake block still present"
 
 
+def test_lit_searching_requires_scope_json():
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    txt = (repo / "skills" / "lit-searching" / "SKILL.md").read_text()
+    assert "scope.json" in txt, "lit-searching does not read scope.json"
+    assert "lit-scoping" in txt, "lit-searching does not mention auto-trigger"
+
+
 def test_verified_commands_appear_in_skills():
     repo = Path(__file__).resolve().parent.parent
     skills = (repo / ".claude-plugin" / "skills" / "publishing-to-notebooklm"
