@@ -33,15 +33,14 @@ scriptorium regenerate-overview {{REVIEW_DIR}}
 ```
 
 If `notebooklm_prompt` is not `false`, `notebooklm_enabled` is `true`, and
-`nlm doctor` succeeds, show this prompt (skip is default):
+`nlm doctor` succeeds, call `AskUserQuestion` with a single question:
 
-```
-NotebookLM artifact? (skip default)
-  audio
-  deck
-  mindmap
-  skip
-```
+- `header: "NotebookLM"`
+- question: `"Publish to NotebookLM?"`
+- options:
+  - `{ label: "Skip (Recommended)", description: "Review is complete — publish later with /lit-deck, /lit-podcast, or /lit-mindmap" }`
+  - `{ label: "Audio overview", description: "Generate a podcast-style audio summary" }`
+  - `{ label: "Slide deck", description: "Generate a presentation deck" }`
+  - `{ label: "Mind map", description: "Generate a visual mind map" }`
 
-Route non-`skip` selections to `scriptorium publish --review-dir <path>
---generate <audio|deck|mindmap>`.
+Route non-skip selections to `scriptorium publish --review-dir <path> --generate <audio|deck|mindmap>`.
