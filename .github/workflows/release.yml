@@ -1,0 +1,29 @@
+name: Release Plugin Asset
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$TAG" --title "$TAG" --generate-notes
+
+      - name: Archive tracked files
+        run: git archive --format=zip --output="scriptorium-${TAG}.plugin" "$TAG"
+
+      - name: Upload plugin asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" "scriptorium-${TAG}.plugin"

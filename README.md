@@ -359,7 +359,12 @@ Then follow the install steps above.
 <details>
 <summary><b>Claude Cowork</b></summary>
 
-Install the plugin in your Cowork workspace. Recommended connectors:
+**Install:**
+
+1. Download the latest `scriptorium-vX.Y.Z.plugin` from [Releases](https://github.com/Jerrymwolf/Scriptorium/releases).
+2. In Cowork: **Settings → Plugins → Upload** and select the file.
+
+Recommended connectors:
 
 - **Consensus** — claim-framed search
 - **Scholar Gateway** — breadth search

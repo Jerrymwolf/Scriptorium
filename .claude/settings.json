@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "Jerrymwolf-Scriptorium": {
+      "source": {
+        "source": "github",
+        "repo": "Jerrymwolf/Scriptorium"
+      }
+    }
+  }
+}
