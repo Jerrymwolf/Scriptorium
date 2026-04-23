@@ -8,44 +8,35 @@ Failure must never block overview generation — the .md is the source of truth.
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.*)$")
 _BULLET_RE = re.compile(r"^[-*+]\s+(.*)$")
 _ORDERED_RE = re.compile(r"^\d+\.\s+(.*)$")
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$")
-_INLINE_RE = re.compile(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)")
-
-
-def _emit_runs(paragraph, text: str) -> None:
-    parts = _INLINE_RE.split(text)
-    for part in parts:
-        if not part:
-            continue
-        if part.startswith("**") and part.endswith("**"):
-            run = paragraph.add_run(part[2:-2])
-            run.bold = True
-        elif part.startswith("*") and part.endswith("*") and len(part) > 2:
-            run = paragraph.add_run(part[1:-1])
-            run.italic = True
-        elif part.startswith("`") and part.endswith("`"):
-            run = paragraph.add_run(part[1:-1])
-            run.font.name = "Consolas"
-        else:
-            paragraph.add_run(part)
+_INLINE_RE = re.compile(
+    r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[A-Za-z0-9_\-]+:[^\]]+\])"
+)
+_CITATION_RE = re.compile(r"\[([A-Za-z0-9_\-]+):([^\]]+)\]")
 
 
 def render_overview_docx(md_path: Path, docx_path: Path, corpus_path: Path) -> None:
     """Render overview.md to .docx. Best-effort; caller isolates failures."""
     text = md_path.read_text(encoding="utf-8")
     body = _strip_frontmatter(text)
+    corpus = _load_corpus(corpus_path)
+    papers_dir = corpus_path.parent.parent / "sources" / "papers"
+    ctx = {"corpus": corpus, "papers_dir": papers_dir, "misses": []}
     doc = Document()
     for block in _blocks(body):
-        _render_block(doc, block)
+        _render_block(doc, block, ctx)
     doc.save(str(docx_path))
 
 
@@ -73,7 +64,7 @@ def _blocks(body: str) -> list[list[str]]:
     return blocks
 
 
-def _render_block(doc, block: list[str]) -> None:
+def _render_block(doc, block: list[str], ctx: dict) -> None:
     first = block[0]
 
     m = _HEADING_RE.match(first)
@@ -85,13 +76,13 @@ def _render_block(doc, block: list[str]) -> None:
     if all(_BULLET_RE.match(line) for line in block):
         for line in block:
             p = doc.add_paragraph(style="List Bullet")
-            _emit_runs(p, _BULLET_RE.match(line).group(1))
+            _emit_runs(p, _BULLET_RE.match(line).group(1), ctx)
         return
 
     if all(_ORDERED_RE.match(line) for line in block):
         for line in block:
             p = doc.add_paragraph(style="List Number")
-            _emit_runs(p, _ORDERED_RE.match(line).group(1))
+            _emit_runs(p, _ORDERED_RE.match(line).group(1), ctx)
         return
 
     if len(block) >= 2 and _TABLE_SEP_RE.match(block[1]) and "|" in block[0]:
@@ -99,7 +90,7 @@ def _render_block(doc, block: list[str]) -> None:
         return
 
     para = doc.add_paragraph()
-    _emit_runs(para, " ".join(line.strip() for line in block))
+    _emit_runs(para, " ".join(line.strip() for line in block), ctx)
 
 
 def _split_table_row(line: str) -> list[str]:
@@ -117,3 +108,117 @@ def _render_table(doc, block: list[str]) -> None:
     for r, row in enumerate(rows, start=1):
         for i, cell in enumerate(table.rows[r].cells):
             cell.text = row[i] if i < len(row) else ""
+
+
+def _emit_runs(paragraph, text: str, ctx: dict) -> None:
+    parts = _INLINE_RE.split(text)
+    for part in parts:
+        if not part:
+            continue
+        if part.startswith("**") and part.endswith("**"):
+            run = paragraph.add_run(part[2:-2])
+            run.bold = True
+        elif part.startswith("*") and part.endswith("*") and len(part) > 2:
+            run = paragraph.add_run(part[1:-1])
+            run.italic = True
+        elif part.startswith("`") and part.endswith("`"):
+            run = paragraph.add_run(part[1:-1])
+            run.font.name = "Consolas"
+        elif _CITATION_RE.fullmatch(part):
+            _emit_citation(paragraph, part, ctx)
+        else:
+            paragraph.add_run(part)
+
+
+def _load_corpus(corpus_path: Path) -> dict[str, dict]:
+    if not corpus_path.exists() or corpus_path.stat().st_size == 0:
+        return {}
+    index: dict[str, dict] = {}
+    for line in corpus_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        pid = row.get("paper_id")
+        if pid:
+            index[pid] = row
+    return index
+
+
+def _first_author_surname(row: dict) -> str:
+    authors = row.get("authors") or []
+    if not authors:
+        return row.get("paper_id", "")
+    first = authors[0]
+    if isinstance(first, str):
+        return first.split(",")[0].strip()
+    return first.get("family") or first.get("name", "")
+
+
+_LOCATOR_SPACE_RE = re.compile(r"^(p\.|pp\.)(\S)")
+
+
+def _normalize_locator(locator: str) -> str:
+    """Insert a space between `p.`/`pp.` and digits: `p.12` → `p. 12`."""
+    return _LOCATOR_SPACE_RE.sub(r"\1 \2", locator.strip())
+
+
+def _citation_label(row: dict, locator: str) -> str:
+    surname = _first_author_surname(row)
+    year = row.get("year", "n.d.")
+    return f"({surname} {year}, {_normalize_locator(locator)})"
+
+
+def _citation_hyperlink(row: dict, papers_dir: Path) -> str | None:
+    doi = row.get("doi")
+    if doi:
+        return f"https://doi.org/{doi}"
+    url = row.get("url")
+    if url:
+        return url
+    stub = papers_dir / f"{row.get('paper_id')}.md"
+    if stub.exists():
+        return str(stub)
+    return None
+
+
+def _add_hyperlink(paragraph, url: str, text: str) -> None:
+    part = paragraph.part
+    rid = part.relate_to(
+        url,
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+        is_external=True,
+    )
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), rid)
+    run = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+    style = OxmlElement("w:rStyle")
+    style.set(qn("w:val"), "Hyperlink")
+    rPr.append(style)
+    run.append(rPr)
+    t = OxmlElement("w:t")
+    t.text = text
+    t.set(qn("xml:space"), "preserve")
+    run.append(t)
+    hyperlink.append(run)
+    paragraph._p.append(hyperlink)
+
+
+def _emit_citation(paragraph, raw: str, ctx: dict) -> None:
+    m = _CITATION_RE.fullmatch(raw)
+    pid, locator = m.group(1), m.group(2).strip()
+    row = ctx["corpus"].get(pid)
+    if not row:
+        paragraph.add_run(raw)
+        ctx["misses"].append(pid)
+        return
+    label = _citation_label(row, locator)
+    link = _citation_hyperlink(row, ctx["papers_dir"])
+    if link:
+        _add_hyperlink(paragraph, link, label)
+    else:
+        paragraph.add_run(label)
