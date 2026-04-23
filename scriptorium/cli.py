@@ -23,6 +23,10 @@ from typing import Callable, Sequence, TextIO
 from scriptorium import __version__
 from scriptorium.config import load_config, save_config_from_kv
 from scriptorium.paths import ReviewPaths, resolve_review_dir
+from scriptorium.scope import (
+    ScopeValidationError,
+    load_scope,
+)
 from scriptorium.reasoning.bib_export import export_bibtex, export_ris
 from scriptorium.reasoning.contradictions import find_contradictions
 from scriptorium.reasoning.screening import ScreenCriteria, screen
@@ -265,7 +269,34 @@ def cmd_audit_read(args, paths, stdout, stderr, stdin) -> int:
     return 0
 
 
+def cmd_scope_validate(args, paths, stdout, stderr, stdin) -> int:
+    """Validate scope.json. Exit 0 if valid, 2 if missing, 3 if invalid."""
+    scope_path = Path(args.path) if args.path else paths.scope
+    if not scope_path.exists():
+        stderr.write(f"scope.json not found at {scope_path}\n")
+        return 2
+    try:
+        load_scope(scope_path)
+    except ScopeValidationError as e:
+        stderr.write(f"scope validation failed: {e}\n")
+        return 3
+    stdout.write(f"scope.json is valid ({scope_path})\n")
+    return 0
+
+
 def cmd_verify(args, paths, stdout, stderr, stdin) -> int:
+    if args.scope is not None:
+        scope_path = Path(args.scope)
+        try:
+            load_scope(scope_path)
+        except FileNotFoundError:
+            stderr.write(f"scope.json not found at {scope_path}\n")
+            return 3
+        except ScopeValidationError as e:
+            stderr.write(f"scope validation failed: {e}\n")
+            return 3
+        stdout.write(f"scope.json is valid ({scope_path})\n")
+        return 0
     if getattr(args, 'overview', None):
         from scriptorium.errors import EXIT_CODES
         from scriptorium.frontmatter import strip_frontmatter
@@ -521,6 +552,7 @@ _HANDLERS: dict[tuple[str, str | None], _Handler] = {
     ("evidence", "list"): cmd_evidence_list,
     ("audit", "append"): cmd_audit_append,
     ("audit", "read"): cmd_audit_read,
+    ("scope", "validate"): cmd_scope_validate,
     ("verify", None): cmd_verify,
     ("contradictions", None): cmd_contradictions,
     ("bib", None): cmd_bib,
@@ -627,6 +659,12 @@ def _build_parser() -> argparse.ArgumentParser:
     pv = sub.add_parser("verify", help="Verify synthesis citations")
     pv.add_argument("--synthesis", default=None)
     pv.add_argument("--overview", default=None, help="Run overview lint instead of synthesis verify")
+    pv.add_argument("--scope", default=None, help="Validate a scope.json file")
+
+    ps = sub.add_parser("scope", help="Scope artifact (scope.json) operations")
+    ps_sub = ps.add_subparsers(dest="subcommand", required=True)
+    ps_validate = ps_sub.add_parser("validate", help="Validate scope.json against v1 schema")
+    ps_validate.add_argument("--path", default=None, help="Explicit scope.json path")
 
     sub.add_parser(
         "contradictions",
@@ -676,6 +714,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(
     argv: Sequence[str] | None = None,
+    cwd: Path | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
     stdin: TextIO | None = None,
@@ -701,7 +740,7 @@ def main(
     ns.review_dir = pre_ns.review_dir
 
     explicit = Path(ns.review_dir) if ns.review_dir else None
-    paths = resolve_review_dir(explicit=explicit, vault_root=None, cwd=None, create=True)
+    paths = resolve_review_dir(explicit=explicit, vault_root=None, cwd=cwd, create=True)
 
     handler = _HANDLERS.get((ns.command, getattr(ns, "subcommand", None)))
     if handler is None:
