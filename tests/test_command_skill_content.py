@@ -28,6 +28,14 @@ def test_no_forbidden_tokens_in_plugin_surface():
     assert problems == [], f"stale nlm tokens: {problems}"
 
 
+def test_running_lit_review_dispatches_to_lit_scoping():
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    txt = (repo / "skills" / "running-lit-review" / "SKILL.md").read_text()
+    assert "lit-scoping" in txt, "running-lit-review does not invoke lit-scoping"
+    assert "Inputs you need before starting" not in txt, "old flat intake block still present"
+
+
 def test_verified_commands_appear_in_skills():
     repo = Path(__file__).resolve().parent.parent
     skills = (repo / ".claude-plugin" / "skills" / "publishing-to-notebooklm"
