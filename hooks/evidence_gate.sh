@@ -26,7 +26,33 @@ tool_input = data.get("tool_input") or {}
 print(tool_input.get("file_path", ""))
 ' 2>/dev/null)"
 
+# Scope precondition check — called from downstream-phase branches.
+_check_scope_precondition() {
+  local target_file="$1"
+  local review_dir
+  review_dir="$(dirname "$target_file")"
+  local scope_file="$review_dir/scope.json"
+  if [ ! -f "$scope_file" ]; then
+    printf '[scope gate] scope.json missing at %s — run /scriptorium:lit-scoping before continuing.\n' "$scope_file" >&2
+    return 0
+  fi
+  if command -v scriptorium >/dev/null 2>&1; then
+    if ! scriptorium verify --scope "$scope_file" >/dev/null 2>&1; then
+      printf '[scope gate] scope.json at %s is invalid — run /scriptorium:lit-scoping --edit to fix.\n' "$scope_file" >&2
+    fi
+  fi
+}
+
 case "$file_path" in
+  *corpus.jsonl)
+    _check_scope_precondition "$file_path"
+    ;;
+  *evidence.jsonl)
+    _check_scope_precondition "$file_path"
+    ;;
+  *contradictions.md)
+    _check_scope_precondition "$file_path"
+    ;;
   *overview.md)
     if ! command -v scriptorium >/dev/null 2>&1; then
       printf '[evidence-first gate] scriptorium CLI not on PATH — skipping overview lint.\n' >&2
