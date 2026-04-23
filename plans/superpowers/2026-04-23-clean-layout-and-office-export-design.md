@@ -90,10 +90,18 @@ The existing `generating-overview` skill (and its underlying `scriptorium/overvi
 
 **Citation enrichment:**
 - For each `[paper_id:locator]` in `overview.md`, the converter looks up `paper_id` in `data/corpus.jsonl`.
-- Renders in the docx as `(First-author Year, p. locator)`, with a hyperlink to the paper stub in `sources/papers/<paper_id>.md`.
-- Corpus lookup miss → leaves the raw `[paper_id:locator]` text in the docx and records the miss in the audit event. No silent drops.
+- Renders in the docx as `(First-author Year, p. locator)`.
+- Hyperlink target precedence — picks the first available, in this order:
+  1. `doi` from the corpus row → `https://doi.org/<doi>` (committee-friendly, works from any machine).
+  2. `url` from the corpus row.
+  3. Paper stub at `sources/papers/<paper_id>.md`, **only if the file exists** on disk at render time.
+  4. No hyperlink — plain styled text.
+- Citations inside fenced code blocks and inside existing markdown link syntax are left untouched.
+- Corpus lookup miss (unknown `paper_id`) → leaves the raw `[paper_id:locator]` text in the docx and records the miss in the audit event. No silent drops.
+- If `data/corpus.jsonl` is missing or empty, log one `corpus_unavailable` line at render start and fall through to the miss path for every citation — no per-citation spam.
+- Cite-check discipline remains on `overview.md`. The `.docx` is always regenerated from the cite-checked `.md`, so it cannot drift.
 
-**Audit event schema** (appended on each overview render):
+**Audit event schema** (appended on each overview render — if the existing overview-write code already emits an event, augment that event with the new fields rather than introducing a duplicate; otherwise use `overview_rendered`):
 ```json
 {
   "ts": "2026-04-23T15:02:11Z",
@@ -123,7 +131,7 @@ On docx failure:
 - **`scriptorium/overview/`** — after `overview.md` is written, call `render_overview_docx` and append the audit event.
 - **`scriptorium/export.py`** — new module containing `render_overview_docx` and its helpers (heading/list/table walkers, citation enricher).
 - **`skills/generating-overview/SKILL.md`** — one-line addition noting that `.docx` is written automatically.
-- **`pyproject.toml`** — add `python-docx` to runtime deps.
+- **`pyproject.toml`** — add `python-docx>=1.1,<2` to runtime deps.
 - **`CHANGELOG.md`** — entry for layout change + Word overview.
 - **`README.md`** — one-sentence mention in the features list: "The overview is written as both Markdown and Word, so you can hand the `.docx` to a committee member who doesn't use Obsidian."
 
@@ -139,17 +147,19 @@ Performed manually by Claude in a single session, not shipped as a command:
 6. Move `values-review/extracts/` → `values-review/data/extracts/`.
 7. Move `values-review/audit.md` and `audit.jsonl` → `values-review/audit/`.
 8. Move `values-review/overview.failed.*.md` → `values-review/audit/overview-archive/`.
-9. The existing `bib/` and `outputs/` folders appear empty from the earlier listing; delete if empty, otherwise inspect and move contents to `sources/` or `audit/` as appropriate.
-10. Append a `migrated_layout` event to `audit/audit.jsonl` listing every rename.
+9. For `bib/` and `outputs/`: if empty, delete. If not empty, pause and ask the user before moving anything — their contents are unknown and we don't guess.
+10. After the moves, render `overview.docx` once against the migrated layout so the user sees the Word document immediately instead of waiting for the next overview run.
+11. Append a `migrated_layout` event to `audit/audit.jsonl` listing every rename.
 
-No files are deleted. The operation is idempotent — re-running it is a no-op.
+No files are deleted (empty-folder cleanup aside). The operation is idempotent — re-running it is a no-op.
 
 ### 5. Testing
 
 | Test | What it proves |
 |---|---|
 | `test_overview_docx_shape.py` | Fixture `overview.md` → `.docx`; assert heading levels, bullets, ordered lists, tables, bold/italic/code render correctly via python-docx inspection. |
-| `test_citation_enrichment.py` | Hit path: `[paper_id:p.12]` + matching corpus row → `(Smith 2024, p. 12)` rendered with hyperlink to `sources/papers/<paper_id>.md`. Miss path: unknown `paper_id` left raw in docx and logged to the audit event. |
+| `test_citation_enrichment.py` | Hyperlink precedence: DOI → url → existing paper stub → no link. Unknown `paper_id` → raw text left in docx + audit miss. Corpus missing/empty → one `corpus_unavailable` log line, every citation falls through as a miss. Citation inside a fenced code block or existing link syntax is left untouched. |
+| `test_overview_docx_opens.py` | Rendered `.docx` passes zipfile integrity check and python-docx can reopen and walk it — catches malformed XML that unit asserts miss. |
 | `test_overview_audit_event.py` | Overview run writes both files; one `overview_rendered` audit event with source sha256 and citation-miss list. |
 | `test_overview_docx_failure_isolation.py` | Inject a docx render failure; assert `.md` still saved, `overview_docx_failed` event appended, overview step returns success. |
 | `test_paths_new_layout.py` | `ReviewPaths.evidence` resolves to `data/evidence.jsonl`, `audit_md` to `audit/audit.md`, `pdfs` to `sources/pdfs`, etc. |
