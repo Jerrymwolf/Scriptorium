@@ -6,7 +6,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Status: beta](https://img.shields.io/badge/status-beta%20v0.3.1-blue.svg)](#status)
 
-You have 200 candidate papers, a deadline, and no defensible record of how you got here. When your committee asks *"how did you find these sources"* and you've honestly forgotten. 
+Are you tired of Ai research that all over the place? Moving citations from Elicit to Research Rabbit to Zotero, all while trying to keep the sources and context clear and organized? It is a challenge!   
 
 Scriptorium turns the middle third of your lit review — **search through synthesis** — into a disciplined, auditable workflow inside the AI assistant you already use. It produces a committee-defensible record as you go: every claim locator-cited to a paper and page, every search and screening decision logged, contradictions between papers named rather than averaged.
 
@@ -14,7 +14,11 @@ When your committee asks *"how did you search?"*, you show them the file. When y
 
 Runs in **Claude Code**, **Claude Cowork**, or **Codex CLI**. No new subscription — it rides the Claude or ChatGPT plan you already have.
 
-Skill architecture follows the **[Superpowers](https://github.com/obra/superpowers)** pattern by Jesse Vincent — self-contained skill folders that Claude loads on demand.
+Better yet, it is configurable to work with obsidian, so your LLM never forgets where its already been. 
+
+Also it is configurable to work with NotebookLM, so you can build slidedecks, podcasts, and many other things all in one interconnected flow. 
+
+Skill architecture follows the **[Superpowers](https://github.com/obra/superpowers)** pattern by Jesse Vincent — A proven set of self-contained skill folders that Claude/Codex loads on demand.
 
 ---
 
