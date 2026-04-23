@@ -17,6 +17,7 @@ from docx import Document
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.*)$")
 _BULLET_RE = re.compile(r"^[-*+]\s+(.*)$")
 _ORDERED_RE = re.compile(r"^\d+\.\s+(.*)$")
+_TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$")
 
 
 def render_overview_docx(md_path: Path, docx_path: Path, corpus_path: Path) -> None:
@@ -72,4 +73,25 @@ def _render_block(doc, block: list[str]) -> None:
             doc.add_paragraph(_ORDERED_RE.match(line).group(1), style="List Number")
         return
 
+    if len(block) >= 2 and _TABLE_SEP_RE.match(block[1]) and "|" in block[0]:
+        _render_table(doc, block)
+        return
+
     doc.add_paragraph(" ".join(line.strip() for line in block))
+
+
+def _split_table_row(line: str) -> list[str]:
+    parts = line.strip().strip("|").split("|")
+    return [p.strip() for p in parts]
+
+
+def _render_table(doc, block: list[str]) -> None:
+    header = _split_table_row(block[0])
+    rows = [_split_table_row(line) for line in block[2:]]
+    table = doc.add_table(rows=1 + len(rows), cols=len(header))
+    table.style = "Table Grid"
+    for i, cell in enumerate(table.rows[0].cells):
+        cell.text = header[i] if i < len(header) else ""
+    for r, row in enumerate(rows, start=1):
+        for i, cell in enumerate(table.rows[r].cells):
+            cell.text = row[i] if i < len(row) else ""
