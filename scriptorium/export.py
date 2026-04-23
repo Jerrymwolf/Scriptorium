@@ -10,11 +10,18 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+
+
+@dataclass
+class OverviewDocxResult:
+    corpus_unavailable: bool
+    citation_misses: list[str] = field(default_factory=list)
 
 
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.*)$")
@@ -28,11 +35,14 @@ _CITATION_RE = re.compile(r"\[([A-Za-z0-9_\-]+):([^\]]+)\]")
 _LINK_RE = re.compile(r"\[[^\]]+\]\([^)]+\)")
 
 
-def render_overview_docx(md_path: Path, docx_path: Path, corpus_path: Path) -> None:
+def render_overview_docx(
+    md_path: Path, docx_path: Path, corpus_path: Path
+) -> OverviewDocxResult:
     """Render overview.md to .docx. Best-effort; caller isolates failures."""
     text = md_path.read_text(encoding="utf-8")
     body = _strip_frontmatter(text)
     corpus = _load_corpus(corpus_path)
+    corpus_unavailable = not corpus
     papers_dir = corpus_path.parent.parent / "sources" / "papers"
     ctx = {"corpus": corpus, "papers_dir": papers_dir, "misses": []}
     doc = Document()
@@ -47,6 +57,10 @@ def render_overview_docx(md_path: Path, docx_path: Path, corpus_path: Path) -> N
             continue
         _render_block(doc, block, ctx)
     doc.save(str(docx_path))
+    return OverviewDocxResult(
+        corpus_unavailable=corpus_unavailable,
+        citation_misses=list(dict.fromkeys(ctx["misses"])),
+    )
 
 
 def _strip_frontmatter(text: str) -> str:
