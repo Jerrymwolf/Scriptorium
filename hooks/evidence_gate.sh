@@ -15,6 +15,23 @@ set +e
 
 payload="$(cat 2>/dev/null || true)"
 
+# Resolve which scriptorium CLI to use.
+#   1) Explicit override via SCRIPTORIUM_BIN (absolute path).
+#   2) Otherwise the first `scriptorium` on PATH.
+# Callers (tests, CI, worktree venvs) can point SCRIPTORIUM_BIN at e.g.
+# .venv/bin/scriptorium to avoid colliding with a stale system install.
+_scriptorium_bin() {
+  if [ -n "${SCRIPTORIUM_BIN:-}" ] && [ -x "${SCRIPTORIUM_BIN}" ]; then
+    printf '%s' "${SCRIPTORIUM_BIN}"
+    return 0
+  fi
+  if command -v scriptorium >/dev/null 2>&1; then
+    command -v scriptorium
+    return 0
+  fi
+  return 1
+}
+
 file_path="$(
   printf '%s' "$payload" | python3 -c '
 import json, sys
@@ -36,8 +53,9 @@ _check_scope_precondition() {
     printf '[scope gate] scope.json missing at %s — run /scriptorium:lit-scoping before continuing.\n' "$scope_file" >&2
     return 0
   fi
-  if command -v scriptorium >/dev/null 2>&1; then
-    if ! scriptorium verify --scope "$scope_file" >/dev/null 2>&1; then
+  local bin
+  if bin="$(_scriptorium_bin)"; then
+    if ! "$bin" verify --scope "$scope_file" >/dev/null 2>&1; then
       printf '[scope gate] scope.json at %s is invalid — run /scriptorium:lit-scoping --edit to fix.\n' "$scope_file" >&2
     fi
   fi
@@ -54,11 +72,11 @@ case "$file_path" in
     _check_scope_precondition "$file_path"
     ;;
   *overview.md)
-    if ! command -v scriptorium >/dev/null 2>&1; then
+    if ! bin="$(_scriptorium_bin)"; then
       printf '[evidence-first gate] scriptorium CLI not on PATH — skipping overview lint.\n' >&2
       exit 0
     fi
-    out="$(scriptorium verify --overview "$file_path" 2>&1)"
+    out="$("$bin" verify --overview "$file_path" 2>&1)"
     rc=$?
     if [ "$rc" -ne 0 ]; then
       printf '[evidence-first gate] scriptorium verify --overview %s exited %s\n' "$file_path" "$rc" >&2
@@ -66,11 +84,11 @@ case "$file_path" in
     fi
     ;;
   *synthesis.md)
-    if ! command -v scriptorium >/dev/null 2>&1; then
+    if ! bin="$(_scriptorium_bin)"; then
       printf '[evidence-first gate] scriptorium CLI not on PATH — skipping redundancy check; lit-synthesizing step 5 remains authoritative.\n' >&2
       exit 0
     fi
-    out="$(scriptorium verify --synthesis "$file_path" 2>&1)"
+    out="$("$bin" verify --synthesis "$file_path" 2>&1)"
     rc=$?
     if [ "$rc" -ne 0 ]; then
       printf '[evidence-first gate] scriptorium verify --synthesis %s exited %s\n' "$file_path" "$rc" >&2

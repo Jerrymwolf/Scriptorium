@@ -22,6 +22,7 @@ build/
 
 # Testing
 .pytest_cache/
+tests/.hook-shims/
 
 # Finder duplicates and legacy loose files
 * 2.md

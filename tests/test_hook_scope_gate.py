@@ -6,19 +6,24 @@ import os
 import subprocess
 from pathlib import Path
 
-import pytest
+from tests.conftest import SCRIPTORIUM_BIN
 
 
 HOOK = Path(__file__).resolve().parent.parent / "hooks" / "evidence_gate.sh"
 
 
 def _run_hook(payload: dict, env: dict | None = None) -> tuple[int, str, str]:
+    merged = {**os.environ, **(env or {})}
+    # Point the hook at the conftest shim (wrapping `python -m scriptorium.cli`)
+    # so a stale system `scriptorium` on PATH can't leak stderr noise.
+    if SCRIPTORIUM_BIN and "SCRIPTORIUM_BIN" not in merged:
+        merged["SCRIPTORIUM_BIN"] = SCRIPTORIUM_BIN
     result = subprocess.run(
         ["bash", str(HOOK)],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
-        env={**os.environ, **(env or {})},
+        env=merged,
     )
     return result.returncode, result.stdout, result.stderr
 

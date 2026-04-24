@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -11,23 +10,31 @@ import pytest
 from scriptorium.paths import resolve_review_dir
 from scriptorium.storage.evidence import EvidenceEntry, append_evidence
 
+from tests.conftest import SCRIPTORIUM_BIN
+
 HOOK = Path("hooks/evidence_gate.sh").resolve()
 
 
 pytestmark = pytest.mark.skipif(
-    shutil.which("scriptorium") is None,
-    reason="scriptorium CLI must be on PATH (run `pip install -e .` first)",
+    SCRIPTORIUM_BIN is None,
+    reason="scriptorium CLI must be available (run `pip install -e .` first)",
 )
 
 
 def _invoke(payload: dict, *, cwd: Path | None = None) -> subprocess.CompletedProcess:
+    env = {
+        **os.environ,
+        "SCRIPTORIUM_REVIEW_DIR": str(cwd) if cwd else "",
+    }
+    if SCRIPTORIUM_BIN:
+        env["SCRIPTORIUM_BIN"] = SCRIPTORIUM_BIN
     return subprocess.run(
         ["bash", str(HOOK)],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
         cwd=str(cwd) if cwd else None,
-        env={**os.environ, "SCRIPTORIUM_REVIEW_DIR": str(cwd) if cwd else ""},
+        env=env,
     )
 
 
