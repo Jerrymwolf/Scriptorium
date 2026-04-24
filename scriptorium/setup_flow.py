@@ -72,4 +72,13 @@ def run_init(args: InitArgs, stdout, stderr, stdin) -> int:
     # Install is: pipx install scriptorium-cli + /plugin marketplace add + /plugin install.
     # This function is retained for future config-collection logic driven by the
     # /scriptorium-setup command and setting-up-scriptorium skill.
-    pass
+    #
+    # For now, `scriptorium init` is a thin pointer at the slash-command flow:
+    # it emits a completion message and exits 0 so shell automation (and the
+    # test suite) can depend on the exit contract.
+    stdout.write(
+        "scriptorium init: setup complete. "
+        "Run /scriptorium-setup in Claude Code to configure "
+        "email, Obsidian vault, and NotebookLM.\n"
+    )
+    return 0
