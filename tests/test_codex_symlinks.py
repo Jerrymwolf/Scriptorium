@@ -10,8 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 LINKER = ROOT / "scripts" / "codex_link.sh"
 CODEX_SKILLS = ROOT / ".codex" / "skills"
 CODEX_COMMANDS = ROOT / ".codex" / "commands"
-PLUGIN_SKILLS = ROOT / ".claude-plugin" / "skills"
-PLUGIN_COMMANDS = ROOT / ".claude-plugin" / "commands"
+# After f179da7, skills/commands/hooks live at repo root, not under .claude-plugin/.
+PLUGIN_SKILLS = ROOT / "skills"
+PLUGIN_COMMANDS = ROOT / "commands"
 
 
 def test_linker_script_exists_and_is_executable():

@@ -53,7 +53,7 @@ def test_using_scriptorium_mentions_lit_scoping():
 
 def test_verified_commands_appear_in_skills():
     repo = Path(__file__).resolve().parent.parent
-    skills = (repo / ".claude-plugin" / "skills" / "publishing-to-notebooklm"
+    skills = (repo / "skills" / "publishing-to-notebooklm"
               / "SKILL.md").read_text(encoding="utf-8")
     for cmd in ("nlm doctor", "nlm notebook create", "nlm source add",
                 "nlm audio create", "nlm slides create",
