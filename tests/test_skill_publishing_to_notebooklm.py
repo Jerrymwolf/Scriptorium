@@ -1,6 +1,6 @@
 from pathlib import Path
 
-SKILLS = Path(__file__).resolve().parent.parent / ".claude-plugin" / "skills"
+SKILLS = Path(__file__).resolve().parent.parent / "skills"
 
 
 def test_old_skill_directory_is_removed():

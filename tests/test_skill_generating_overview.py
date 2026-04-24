@@ -2,7 +2,7 @@ from pathlib import Path
 
 PATH = (
     Path(__file__).resolve().parent.parent
-    / ".claude-plugin" / "skills" / "generating-overview" / "SKILL.md"
+    / "skills" / "generating-overview" / "SKILL.md"
 )
 
 

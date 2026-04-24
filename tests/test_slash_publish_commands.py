@@ -1,7 +1,7 @@
 """§9.2: three slash commands map to scriptorium publish --generate <kind>."""
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent / ".claude-plugin" / "commands"
+ROOT = Path(__file__).resolve().parent.parent / "commands"
 
 
 def _read(name: str) -> str:

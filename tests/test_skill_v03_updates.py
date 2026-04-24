@@ -1,6 +1,6 @@
 from pathlib import Path
 
-SKILLS = Path(__file__).resolve().parent.parent / ".claude-plugin" / "skills"
+SKILLS = Path(__file__).resolve().parent.parent / "skills"
 
 
 def _read(name: str) -> str:

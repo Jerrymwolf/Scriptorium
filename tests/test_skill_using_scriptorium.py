@@ -34,8 +34,9 @@ def test_state_adapter_mapping_is_verbatim():
 
 def test_runtime_probe_decision_tree_present():
     text = SKILL.read_text(encoding="utf-8")
+    # v0.3 runtime probe uses `scriptorium version` (subcommand).
     for phrase in (
-        "scriptorium --version",
+        "scriptorium version",
         "mcp__claude_ai_Consensus__search",
         "mcp__claude_ai_Scholar_Gateway__semanticSearch",
         "mcp__claude_ai_PubMed__search_articles",
