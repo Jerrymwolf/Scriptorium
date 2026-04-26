@@ -43,16 +43,30 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
 from scriptorium.errors import ScriptoriumError
-from scriptorium.lock import ReviewLock
+from scriptorium.lock import ReviewLock, ReviewLockHeld
 from scriptorium.paths import ReviewPaths
 
 
 SCHEMA_VERSION = "0.4.0"
+
+# I3: a verifier_signature must look exactly like ``sha256:<64 lowercase hex>``.
+# Truthy garbage like ``"abc"`` would otherwise persist to disk and force
+# perpetual silent downgrades on every read.
+_SHA256_SIG_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+# I1: every per-phase entry must contain exactly these five keys. Anything
+# else means a hand-edited or otherwise corrupted artifact, which we surface
+# as ``E_PHASE_STATE_CORRUPT`` rather than letting it crash deep in the
+# invalidation loop.
+_REQUIRED_ENTRY_KEYS: frozenset[str] = frozenset(
+    {"status", "artifact_path", "verified_at", "verifier_signature", "override"}
+)
 
 PhaseName = Literal[
     "scoping",
@@ -180,6 +194,22 @@ def _validate_loaded(state: Any) -> dict[str, Any]:
             "phase-state.json `phases` is not an object",
             symbol="E_PHASE_STATE_CORRUPT",
         )
+    # I1: validate per-entry shape. Without this, malformed entries (None,
+    # str, dict missing keys) crash later inside _maybe_invalidate_signatures
+    # with AttributeError instead of the documented E_PHASE_STATE_CORRUPT.
+    for name, entry in phases.items():
+        if not isinstance(entry, dict):
+            raise ScriptoriumError(
+                f"phase-state.json `phases[{name!r}]` is not an object",
+                symbol="E_PHASE_STATE_CORRUPT",
+            )
+        missing = _REQUIRED_ENTRY_KEYS - entry.keys()
+        if missing:
+            raise ScriptoriumError(
+                f"phase-state.json `phases[{name!r}]` missing required "
+                f"keys: {sorted(missing)}",
+                symbol="E_PHASE_STATE_CORRUPT",
+            )
     return state
 
 
@@ -227,6 +257,11 @@ def _maybe_invalidate_signatures(
     for name in PHASES:
         entry = state["phases"].get(name)
         if not entry:
+            continue
+        # I1 (defensive): _validate_loaded should have already rejected
+        # non-dict entries. This guard makes the loop robust if someone
+        # constructs a state dict in-memory without going through load.
+        if not isinstance(entry, dict):
             continue
         if entry.get("status") != "complete":
             continue
@@ -284,8 +319,15 @@ def read(paths: ReviewPaths) -> dict[str, Any]:
     state = _load_raw(paths.phase_state)
     state, mutated = _maybe_invalidate_signatures(state, paths)
     if mutated:
-        with ReviewLock(paths.lock):
-            _atomic_write(paths.phase_state, state)
+        # I5: ``read()`` is a logical read — it must not raise on writer
+        # contention. The in-memory invalidation is correct regardless;
+        # the next reader will re-derive it from the artifact bytes if we
+        # couldn't persist the downgrade now.
+        try:
+            with ReviewLock(paths.lock):
+                _atomic_write(paths.phase_state, state)
+        except ReviewLockHeld:
+            pass
     return state
 
 
@@ -319,6 +361,15 @@ def set_phase(
                 "`verifier_signature`",
                 symbol="E_PHASE_STATE_INVALID",
             )
+        # I3: enforce the documented signature shape. Without this, garbage
+        # like "abc" persists to disk and forces perpetual silent downgrades
+        # because the artifact's real sha256 will never match.
+        if not _SHA256_SIG_RE.fullmatch(verifier_signature):
+            raise ScriptoriumError(
+                "verifier_signature must match 'sha256:<64 lowercase hex>', "
+                f"got {verifier_signature!r}",
+                symbol="E_PHASE_STATE_INVALID",
+            )
         if verified_at is None:
             verified_at = _utc_z_now()
     elif status == "overridden":
@@ -338,7 +389,15 @@ def set_phase(
         entry = state["phases"].setdefault(phase, _empty_entry())
         entry["status"] = status
         if artifact_path is not None:
-            entry["artifact_path"] = artifact_path
+            # I4: resolve relative paths against the review root at write
+            # time so the on-disk value is always absolute. Otherwise the
+            # read-time invalidation check resolves the path against the
+            # *reader's* cwd, which spuriously downgrades any phase whose
+            # state was read from a different cwd than it was written from.
+            ap = Path(artifact_path)
+            if not ap.is_absolute():
+                ap = (paths.root / ap).resolve()
+            entry["artifact_path"] = str(ap)
         if status == "complete":
             entry["verified_at"] = verified_at
             entry["verifier_signature"] = verifier_signature
@@ -385,6 +444,12 @@ def override_phase(
         entry = state["phases"].setdefault(phase, _empty_entry())
         entry["status"] = "overridden"
         entry["override"] = {"reason": reason, "actor": actor, "ts": ts}
+        # I2: an `overridden` phase has not been *verified* — clear stale
+        # verification metadata so the entry doesn't falsely advertise
+        # "we verified this AND overrode it." `artifact_path` is preserved
+        # so downstream tooling knows what the override applied to.
+        entry["verifier_signature"] = None
+        entry["verified_at"] = None
         _atomic_write(paths.phase_state, state)
     return state
 

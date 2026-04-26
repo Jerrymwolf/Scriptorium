@@ -121,12 +121,13 @@ def test_set_phase_complete_default_verified_at_used_when_signature_present(
     on-disk artifact ends up with both fields non-null per §6.1."""
     paths = ReviewPaths(root=review_dir)
     phase_state.init(paths)
+    valid_sig = "sha256:" + "a" * 64
     state = phase_state.set_phase(
-        paths, "scoping", "complete", verifier_signature="sha256:abc"
+        paths, "scoping", "complete", verifier_signature=valid_sig
     )
     ts = state["phases"]["scoping"]["verified_at"]
     assert ts is not None and ts.endswith("Z")
-    assert state["phases"]["scoping"]["verifier_signature"] == "sha256:abc"
+    assert state["phases"]["scoping"]["verifier_signature"] == valid_sig
 
 
 def test_set_phase_unknown_phase_raises(review_dir: Path) -> None:
@@ -358,3 +359,182 @@ def test_phase_state_reexported_from_storage() -> None:
     from scriptorium.storage import phase_state as ps_via_storage
 
     assert ps_via_storage is phase_state
+
+
+# --- code-review fixes (I1–I5) ---------------------------------------------
+
+
+def test_corrupt_phase_entry_raises_e_phase_state_corrupt(review_dir: Path) -> None:
+    """I1: malformed per-phase entries (None, str, dict missing keys) must
+    surface as ``E_PHASE_STATE_CORRUPT`` from ``read()``, not crash deep in
+    the invalidation loop with ``AttributeError``.
+    """
+    paths = ReviewPaths(root=review_dir)
+    phase_state.init(paths)
+
+    # Case A: phase value is None.
+    raw = json.loads(paths.phase_state.read_text(encoding="utf-8"))
+    raw["phases"]["scoping"] = None
+    paths.phase_state.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(ScriptoriumError) as excinfo:
+        phase_state.read(paths)
+    assert excinfo.value.symbol == "E_PHASE_STATE_CORRUPT"
+
+    # Case B: phase value is a string.
+    raw = json.loads(paths.phase_state.read_text(encoding="utf-8"))
+    raw["phases"]["scoping"] = "not-a-dict"
+    paths.phase_state.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(ScriptoriumError) as excinfo:
+        phase_state.read(paths)
+    assert excinfo.value.symbol == "E_PHASE_STATE_CORRUPT"
+
+    # Case C: phase value is a dict but missing one of the five required keys.
+    raw = json.loads(paths.phase_state.read_text(encoding="utf-8"))
+    raw["phases"]["scoping"] = {
+        "status": "pending",
+        "artifact_path": None,
+        "verified_at": None,
+        # missing "verifier_signature"
+        "override": None,
+    }
+    paths.phase_state.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(ScriptoriumError) as excinfo:
+        phase_state.read(paths)
+    assert excinfo.value.symbol == "E_PHASE_STATE_CORRUPT"
+
+
+def test_override_clears_stale_verifier_signature(review_dir: Path) -> None:
+    """I2: overriding a previously-`complete` phase must clear the stale
+    ``verifier_signature`` and ``verified_at`` so the entry doesn't falsely
+    advertise "verified AND overridden". ``artifact_path`` is preserved so
+    downstream tooling knows what the override applied to.
+    """
+    paths = ReviewPaths(root=review_dir)
+    phase_state.init(paths)
+
+    artifact = review_dir / "synthesis.md"
+    artifact.write_text("# v1\n", encoding="utf-8")
+    sig = phase_state.verifier_signature_for(artifact)
+    phase_state.set_phase(
+        paths,
+        "synthesis",
+        "complete",
+        artifact_path=str(artifact),
+        verifier_signature=sig,
+        verified_at="2026-04-26T00:00:00Z",
+    )
+
+    phase_state.override_phase(
+        paths, "synthesis", reason="manual sign-off", actor="jerry"
+    )
+
+    state = phase_state.read(paths)
+    entry = state["phases"]["synthesis"]
+    assert entry["status"] == "overridden"
+    assert entry["verifier_signature"] is None
+    assert entry["verified_at"] is None
+    assert entry["override"]["reason"] == "manual sign-off"
+    assert entry["override"]["actor"] == "jerry"
+    # artifact_path preserved so downstream knows what was overridden.
+    assert entry["artifact_path"] == str(artifact)
+
+
+def test_set_phase_complete_rejects_malformed_signature(review_dir: Path) -> None:
+    """I3: ``set_phase(..., complete, verifier_signature=...)`` must reject
+    anything that isn't ``sha256:<64 lowercase hex>``. Truthy garbage like
+    ``"abc"`` would persist to disk and force perpetual silent downgrades.
+    """
+    paths = ReviewPaths(root=review_dir)
+    phase_state.init(paths)
+
+    bad_sigs = [
+        "abc",
+        "sha256:short",
+        "SHA256:" + "a" * 64,  # uppercase prefix
+        "sha256:" + "g" * 64,  # non-hex char
+    ]
+    for bad in bad_sigs:
+        with pytest.raises(ScriptoriumError) as excinfo:
+            phase_state.set_phase(
+                paths,
+                "scoping",
+                "complete",
+                verifier_signature=bad,
+            )
+        assert excinfo.value.symbol == "E_PHASE_STATE_INVALID", (
+            f"signature {bad!r} should have raised E_PHASE_STATE_INVALID, "
+            f"got symbol={excinfo.value.symbol!r}"
+        )
+
+
+def test_relative_artifact_path_resolved_to_review_root(
+    review_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """I4: a relative ``artifact_path`` passed to ``set_phase`` must be
+    resolved against the review root at write time, so subsequent reads
+    from a different cwd don't spuriously invalidate the signature.
+    """
+    paths = ReviewPaths(root=review_dir)
+    phase_state.init(paths)
+
+    artifact = paths.synthesis  # /<review>/synthesis.md
+    artifact.write_text("# v1\n", encoding="utf-8")
+    sig = phase_state.verifier_signature_for(artifact)
+
+    # Caller passes a *relative* artifact_path — common footgun.
+    phase_state.set_phase(
+        paths,
+        "synthesis",
+        "complete",
+        artifact_path="synthesis.md",
+        verifier_signature=sig,
+        verified_at="2026-04-26T00:00:00Z",
+    )
+
+    # Read from a *different* cwd. The invalidation check must operate
+    # on the absolute path stored on disk, not resolve "synthesis.md"
+    # against the reader's cwd.
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    state = phase_state.read(paths)
+    entry = state["phases"]["synthesis"]
+    assert entry["status"] == "complete"  # NOT downgraded
+    assert entry["artifact_path"] == str(paths.synthesis.resolve())
+
+
+def test_read_does_not_raise_on_lock_contention(review_dir: Path) -> None:
+    """I5: ``read()`` must tolerate ``ReviewLockHeld`` when the in-memory
+    invalidation tries to persist itself. The downgraded state is correct
+    in memory regardless; the next reader will re-derive it from the
+    artifact bytes if the persistence write was skipped.
+    """
+    from scriptorium.lock import ReviewLock
+
+    paths = ReviewPaths(root=review_dir)
+    phase_state.init(paths)
+
+    artifact = review_dir / "synthesis.md"
+    artifact.write_text("# v1\n", encoding="utf-8")
+    sig = phase_state.verifier_signature_for(artifact)
+    phase_state.set_phase(
+        paths,
+        "synthesis",
+        "complete",
+        artifact_path=str(artifact),
+        verifier_signature=sig,
+        verified_at="2026-04-26T00:00:00Z",
+    )
+
+    # Mutate the artifact so read() will want to invalidate + persist.
+    artifact.write_text("# v2 mutated\n", encoding="utf-8")
+
+    # Hold the lock externally; read() must NOT raise ReviewLockHeld.
+    with ReviewLock(paths.lock):
+        state = phase_state.read(paths)
+
+    entry = state["phases"]["synthesis"]
+    assert entry["status"] == "running"  # in-memory invalidation still applied
+    assert entry["verifier_signature"] is None
+    assert entry["verified_at"] is None
