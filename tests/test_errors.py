@@ -22,6 +22,10 @@ EXPECTED = {
     "E_STATE_CORRUPT": 16,
     "E_OVERVIEW_FAILED": 17,
     "E_SETUP_FAILED": 18,
+    # v0.4 Layer A — phase-state contract (T03)
+    "E_PHASE_STATE_VERSION_NEWER": 19,
+    "E_PHASE_STATE_INVALID": 20,
+    "E_PHASE_STATE_CORRUPT": 21,
     "E_INTERRUPTED": 130,
 }
 

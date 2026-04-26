@@ -99,6 +99,11 @@ class ReviewPaths:
     def lock(self) -> Path:
         return self.scriptorium_dir / "lock"
 
+    @property
+    def phase_state(self) -> Path:
+        """v0.4 Layer A artifact: per-review phase status (§6.1)."""
+        return self.scriptorium_dir / "phase-state.json"
+
     # Active caller: scriptorium/reasoning/bib_export.py
     @property
     def bib(self) -> Path:
