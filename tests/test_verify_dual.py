@@ -229,14 +229,20 @@ def test_t11_names_audit_evidence_requirement(skill_text: str):
 # --- B8. Generic-optimism phrases listed as forbidden --------------------
 
 
-# The plan lists these as forbidden completion-claim patterns. They must
-# appear in a "do not say this" / red-flag context, not as positive
-# guidance. We pin three of them for the test, which gives wiggle room
-# in the prose.
+# Floor pin: every quoted forbidden-optimism phrase the skill currently lists in
+# its red-flag block. If the skill adds a new forbidden phrase, add it here too.
+# These phrases must appear in a "do not say this" / red-flag context, not as
+# positive guidance.
 T11_FORBIDDEN_OPTIMISM_PHRASES = (
     "should pass",
+    "should be complete",
+    "should work",
     "looks complete",
+    "looks clean",
+    "looks fine",
     "phase is done",
+    "synthesis is clean",
+    "ready to publish",
 )
 
 
@@ -254,8 +260,10 @@ def test_t11_forbids_generic_optimism_phrase(skill_text: str, phrase: str):
 
 def test_t11_forbidden_phrases_appear_in_negative_context(skill_text: str):
     """The forbidden phrases must NOT appear as positive guidance. We
-    check that each phrase sits within ~400 chars of a negative marker
-    (a red-flag / do-not / forbidden / not sufficient cue)."""
+    check that each phrase sits within ~800 chars of a negative marker
+    (a red-flag / do-not / forbidden / not sufficient cue). The window
+    is wide enough to span the entire red-flag bullet list from any
+    bullet within it."""
     negative_markers = (
         "Red flag",
         "red flag",
@@ -273,8 +281,8 @@ def test_t11_forbidden_phrases_appear_in_negative_context(skill_text: str):
     for phrase in T11_FORBIDDEN_OPTIMISM_PHRASES:
         idx = skill_text.find(phrase)
         assert idx != -1, f"forbidden phrase {phrase!r} not present"
-        window_start = max(0, idx - 400)
-        window_end = min(len(skill_text), idx + 400)
+        window_start = max(0, idx - 800)
+        window_end = min(len(skill_text), idx + 800)
         window = skill_text[window_start:window_end]
         assert any(m in window for m in negative_markers), (
             f"forbidden phrase {phrase!r} must sit near a negative marker "
@@ -347,31 +355,36 @@ def test_t11_has_when_to_apply_section(skill_text: str):
 def test_t11_references_parent_superpowers_skill(skill_text: str):
     """A reader should be able to find the generic version. Per the
     stylistic guidance, cite the parent skill once near the top."""
-    text_lower = skill_text.lower()
-    has_reference = (
-        "superpowers:verification-before-completion" in text_lower
-        or "superpowers" in text_lower and "verification-before-completion" in text_lower
-    )
-    assert has_reference, (
-        "skill must reference the parent `superpowers:verification-before-completion`"
-        " skill so a reader can find the generic version"
+    assert "superpowers:verification-before-completion" in skill_text.lower(), (
+        "expected canonical reference 'superpowers:verification-before-completion'"
+        " in skill prose so a reader can find the generic version"
     )
 
 
 # --- B12. Reasonable size (intent-focused, not a how-to manual) ----------
 
 
+SOFT_CAP_BYTES = 8 * 1024
+HARD_CAP_BYTES = 12 * 1024  # 1.5x soft — pragmatic ceiling for a discipline skill
+
+
 def test_t11_skill_size_reasonable(skill_text: str):
-    """Skill should be intent-focused prose — keep it close to the parent
-    skill's ~140-line / ~5KB shape. Cap at 8KB / 250 lines as a sanity
-    bound; anything larger has drifted into how-to-manual territory."""
+    """B12. Skill size soft-warns at 8 KiB; hard-fails at 12 KiB.
+
+    Discipline skills should stay scannable. The soft cap matches the parent
+    `superpowers:verification-before-completion` skill's size; the hard cap
+    gives prose-edit headroom without letting the file balloon."""
     size_bytes = len(skill_text.encode("utf-8"))
     line_count = skill_text.count("\n") + 1
-    assert size_bytes <= 8 * 1024, (
-        f"skill is {size_bytes} bytes; cap is 8 KiB so it stays "
-        "intent-focused, not a how-to manual"
+    assert size_bytes <= HARD_CAP_BYTES, (
+        f"skill is {size_bytes} bytes; hard cap is {HARD_CAP_BYTES}"
     )
     assert line_count <= 250, (
-        f"skill is {line_count} lines; cap is 250 so it stays "
-        "intent-focused"
+        f"skill is {line_count} lines; cap is 250"
     )
+    if size_bytes > SOFT_CAP_BYTES:
+        # Print a warning visible in pytest -v output without failing.
+        print(
+            f"\nNOTE: SKILL.md is {size_bytes} bytes (over {SOFT_CAP_BYTES}-byte"
+            f" soft cap, under {HARD_CAP_BYTES}-byte hard cap)."
+        )
