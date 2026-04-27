@@ -19,6 +19,9 @@ EXPECTED: dict[str, tuple[type | tuple, object]] = {
     "obsidian_vault": (str, ""),
     "notebooklm_enabled": (bool, False),
     "notebooklm_prompt": (bool, True),
+    # v0.4 / T05: enforce_v04 and extraction_parallel_cap.
+    "enforce_v04": (bool, False),
+    "extraction_parallel_cap": (int, 4),
 }
 
 

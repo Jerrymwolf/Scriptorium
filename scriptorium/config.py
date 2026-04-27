@@ -34,6 +34,12 @@ class Config:
     obsidian_vault: str = ""
     notebooklm_enabled: bool = False
     notebooklm_prompt: bool = True
+    # v0.4: advisory/blocking rollout switch (§10). Default False keeps
+    # 0.4.0 in advisory mode; flip to True to make verifier failures block.
+    enforce_v04: bool = False
+    # v0.4: parallel cap consumed by run_extraction (T12, §6.2 signature).
+    # Plant the key here so T12 doesn't need to add it.
+    extraction_parallel_cap: int = 4
 
 
 def load_config(path: Path) -> Config:
@@ -68,8 +74,11 @@ def _toml_escape_str(v: str) -> str:
 
 
 def _toml_serialize(v: Any) -> str:
+    # bool is checked before int because bool is a subclass of int in Python.
     if isinstance(v, bool):
         return "true" if v else "false"
+    if isinstance(v, int):
+        return str(v)
     if isinstance(v, str):
         return _toml_escape_str(v)
     if isinstance(v, list):
@@ -89,6 +98,7 @@ def save_config(path: Path, config: Config) -> None:
 def _coerce(value: str, field_type: Any) -> Any:
     """Coerce a raw string value to the declared field type."""
     origin = get_origin(field_type)
+    # bool is checked before int because bool is a subclass of int in Python.
     if field_type is bool:
         low = value.lower()
         if low in ("true", "1", "yes"):
@@ -96,6 +106,11 @@ def _coerce(value: str, field_type: Any) -> Any:
         if low in ("false", "0", "no"):
             return False
         raise ValueError(f"Cannot coerce {value!r} to bool")
+    if field_type is int:
+        try:
+            return int(value)
+        except ValueError as e:
+            raise ValueError(f"Cannot coerce {value!r} to int") from e
     if origin is list:
         args = get_args(field_type)
         item_type = args[0] if args else str
