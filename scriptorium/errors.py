@@ -32,6 +32,8 @@ EXIT_CODES: dict[str, int] = {
     "E_PHASE_STATE_VERSION_NEWER": 19,
     "E_PHASE_STATE_INVALID": 20,
     "E_PHASE_STATE_CORRUPT": 21,
+    # v0.4 Layer B — reviewer output validation (T04)
+    "E_REVIEWER_INVALID": 22,
     "E_INTERRUPTED": 130,
 }
 
