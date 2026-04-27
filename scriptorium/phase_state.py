@@ -58,7 +58,7 @@ SCHEMA_VERSION = "0.4.0"
 # I3: a verifier_signature must look exactly like ``sha256:<64 lowercase hex>``.
 # Truthy garbage like ``"abc"`` would otherwise persist to disk and force
 # perpetual silent downgrades on every read.
-_SHA256_SIG_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+SHA256_SIG_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 # I1: every per-phase entry must contain exactly these five keys. Anything
 # else means a hand-edited or otherwise corrupted artifact, which we surface
@@ -364,7 +364,7 @@ def set_phase(
         # I3: enforce the documented signature shape. Without this, garbage
         # like "abc" persists to disk and forces perpetual silent downgrades
         # because the artifact's real sha256 will never match.
-        if not _SHA256_SIG_RE.fullmatch(verifier_signature):
+        if not SHA256_SIG_RE.fullmatch(verifier_signature):
             raise ScriptoriumError(
                 "verifier_signature must match 'sha256:<64 lowercase hex>', "
                 f"got {verifier_signature!r}",

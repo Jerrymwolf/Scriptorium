@@ -334,7 +334,7 @@ def cmd_verify(args, paths, stdout, stderr, stdin) -> int:
                 "reason": f"synthesis phase status is {synth_status!r}; must be 'complete' or 'overridden'",
                 "synthesis_status": synth_status,
             }
-            stdout.write(json.dumps(msg) + "\n")
+            stderr.write(json.dumps(msg) + "\n")
             return EXIT_CODES["E_VERIFY_FAILED"]
 
     # Legacy / gate-dispatched paths below.

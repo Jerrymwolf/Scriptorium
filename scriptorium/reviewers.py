@@ -32,7 +32,7 @@ import re
 from typing import Any
 
 from scriptorium.errors import ScriptoriumError
-from scriptorium.phase_state import _SHA256_SIG_RE
+from scriptorium.phase_state import SHA256_SIG_RE
 
 
 _VALID_REVIEWERS = frozenset({"cite", "contradiction"})
@@ -123,7 +123,7 @@ def validate_reviewer_output(payload: dict[str, Any]) -> dict[str, Any]:
         value = payload[hash_field]
         if not isinstance(value, str):
             _fail(f"{hash_field!r} must be a string")
-        if not _SHA256_SIG_RE.fullmatch(value):
+        if not SHA256_SIG_RE.fullmatch(value):
             _fail(
                 f"{hash_field!r} must match 'sha256:<64 lowercase hex>', "
                 f"got {value!r}"

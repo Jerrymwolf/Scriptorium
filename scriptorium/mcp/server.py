@@ -53,9 +53,14 @@ mcp = FastMCP("scriptorium", instructions=_load_instructions())
 # ---------------------------------------------------------------------------
 
 
-def _paths(review_dir: str):
-    """Resolve a ReviewPaths from a string path, creating dirs if needed."""
-    return resolve_review_dir(explicit=Path(review_dir), create=True)
+def _paths(review_dir: str, *, create: bool = False):
+    """Resolve a ReviewPaths from a string path.
+
+    Pass ``create=True`` only for tools that need to write to the review dir.
+    Read-only tools pass the default ``create=False`` so a typo'd path does
+    not silently materialise a junk directory.
+    """
+    return resolve_review_dir(explicit=Path(review_dir), create=create)
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +184,7 @@ def phase_set(
     from scriptorium.errors import EXIT_CODES, ScriptoriumError
     from scriptorium import phase_state as ps
 
-    paths = _paths(review_dir)
+    paths = _paths(review_dir, create=True)
     try:
         return ps.set_phase(
             paths, phase, status,
@@ -210,7 +215,7 @@ def phase_override(
     from scriptorium.errors import EXIT_CODES, ScriptoriumError
     from scriptorium import phase_state as ps
 
-    paths = _paths(review_dir)
+    paths = _paths(review_dir, create=True)
     try:
         return ps.override_phase(paths, phase, reason=reason, actor=actor)
     except ScriptoriumError as e:
@@ -232,9 +237,10 @@ def extract_paper(
     This tool will be wired in T12/T13.  Returns a structured error now so
     Cowork can handle it gracefully rather than receiving an exception.
     """
+    from scriptorium.errors import EXIT_CODES
     return {
         "error": "extract_paper not yet implemented in v0.4 (T12/T13)",
-        "code": "E_NOT_IMPLEMENTED",
+        "code": EXIT_CODES["E_NOT_IMPLEMENTED"],
     }
 
 

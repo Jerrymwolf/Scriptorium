@@ -152,8 +152,22 @@ def test_mcp_extract_paper_returns_not_implemented(review_dir):
         paper_id="W1",
     )
     assert "error" in result
-    assert result["code"] == "E_NOT_IMPLEMENTED"
+    assert result["code"] == 23  # E_NOT_IMPLEMENTED — must be int, not string
     assert "T12" in result["error"]
+
+
+def test_mcp_phase_show_does_not_create_sibling_dirs(tmp_path):
+    """phase_show against a fresh dir must NOT create data/, audit/, sources/."""
+    fresh = tmp_path / "fresh_review"
+    fresh.mkdir()
+    # Calling phase_show should succeed (phase_state.read auto-inits the state
+    # under .scriptorium/) but must NOT create the data/audit/sources siblings
+    # that resolve_review_dir(create=True) would have materialised.
+    result = mcp_server.phase_show(review_dir=str(fresh))
+    assert "phases" in result  # tool succeeded
+    assert not (fresh / "data").exists(), "data/ must not be created by phase_show"
+    assert not (fresh / "audit").exists(), "audit/ must not be created by phase_show"
+    assert not (fresh / "sources").exists(), "sources/ must not be created by phase_show"
 
 
 # ---------------------------------------------------------------------------

@@ -296,12 +296,13 @@ def test_verify_gate_synthesis_clean(review_dir):
 
 
 def test_verify_gate_publish_blocked_when_synthesis_pending(review_dir):
-    """publish gate should fail when synthesis phase is pending."""
+    """publish gate should fail with envelope on stderr, not stdout."""
     rc, out, err = run(["verify", "--gate", "publish"], review_dir)
     assert rc == 3  # E_VERIFY_FAILED
-    data = json.loads(err) if not out.strip() else json.loads(out) if out.strip() else {}
-    # Accept either channel — just confirm non-zero exit
-    assert rc != 0
+    assert not out.strip(), "failure envelope must not appear on stdout"
+    data = json.loads(err)
+    assert data["ok"] is False
+    assert data["publish_blocked"] is True
 
 
 def test_verify_gate_publish_passes_when_synthesis_complete(review_dir):
