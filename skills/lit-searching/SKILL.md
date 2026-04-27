@@ -7,9 +7,16 @@ description: Use when the user asks to find/search/discover papers on a topic, w
 
 **Defensive fallback (fire `using-scriptorium` first):** If the three-discipline preamble (Evidence-first claims / PRISMA audit trail / Contradiction surfacing) is not already loaded for this session, invoke `using-scriptorium` before continuing. Primary injection runs via the Claude Code `SessionStart` hook and the Cowork MCP `instructions` field — this fallback covers the rare case where neither fired.
 
-## Precondition — scope.json is required
+## HARD-GATE — scope.json and `scoping.status` must be complete
 
-`lit-searching` reads `<review_root>/scope.json` at startup. If it does not exist, STOP and invoke `lit-scoping` first — do not ask the user for query, year range, or criteria yourself. Those values come from the scope artifact.
+`lit-searching` reads two artifacts at startup before doing anything else:
+
+- `<review_root>/scope.json` — the validated scope produced by `lit-scoping`.
+- `<review_root>/.scriptorium/phase-state.json::phases.scoping.status` — must be `"complete"`.
+
+If `scope.json` is missing OR `scoping.status` is anything other than `"complete"` (i.e. `pending`, `running`, `failed`), STOP and invoke `lit-scoping` first. Do not ask the user for research question, year range, or criteria yourself — those values come from the scope artifact, and a skipped scoping phase means there is no validated scope to consume.
+
+If `enforce_v04=false` (advisory mode), warn the user that searching is normally gated on a complete scoping phase, append an `audit.jsonl` row with `mode=advisory`, and proceed ONLY if `scope.json` is on disk and the user has explicitly acknowledged the missing `scoping.status=complete` signal. Silent bypass is forbidden — advisory means *warn loudly and require acknowledgement*, not *suppress the warning*.
 
 Fields consumed from scope.json:
 

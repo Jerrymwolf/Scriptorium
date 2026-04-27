@@ -7,6 +7,17 @@ description: Use when the user asks to draft a literature review section, write 
 
 **Defensive fallback (fire `using-scriptorium` first):** If the three-discipline preamble (Evidence-first claims / PRISMA audit trail / Contradiction surfacing) is not already loaded for this session, invoke `using-scriptorium` before continuing. Primary injection runs via the Claude Code `SessionStart` hook and the Cowork MCP `instructions` field — this fallback covers the rare case where neither fired.
 
+## HARD-GATE — extraction must be complete and evidence.jsonl must have rows
+
+`lit-synthesizing` reads two signals at startup before drafting any prose:
+
+- `<review_root>/.scriptorium/phase-state.json::phases.extraction.status` — must be `"complete"`.
+- `<review_root>/evidence.jsonl` — must exist and contain at least one row.
+
+If `extraction.status` is anything other than `"complete"` (i.e. `pending`, `running`, `failed`) OR `evidence.jsonl` is missing/empty, STOP and invoke `lit-extracting` first. Synthesis without evidence is fabrication; the cite-check (mandatory final step below) cannot succeed against an empty store, so refusing here saves a wasted draft.
+
+If `enforce_v04=false` (advisory mode), warn the user that synthesis is normally gated on a complete extraction phase, append an `audit.jsonl` row with `mode=advisory`, and proceed only after the user has explicitly acknowledged that the synthesis will produce un-citable claims. Silent bypass is forbidden — advisory means *warn loudly and require acknowledgement*, not *suppress the warning*.
+
 Input: `evidence.jsonl` (claims with paper+locator). Output: `synthesis.md` where every sentence is either evidence-backed or deliberately meta (headings, transitions).
 
 ## Citation grammar

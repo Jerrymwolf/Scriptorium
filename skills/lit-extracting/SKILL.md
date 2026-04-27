@@ -7,6 +7,17 @@ description: Use when the user asks to pull full text of kept papers, extract me
 
 **Defensive fallback (fire `using-scriptorium` first):** If the three-discipline preamble (Evidence-first claims / PRISMA audit trail / Contradiction surfacing) is not already loaded for this session, invoke `using-scriptorium` before continuing. Primary injection runs via the Claude Code `SessionStart` hook and the Cowork MCP `instructions` field — this fallback covers the rare case where neither fired.
 
+## HARD-GATE — screening must be complete and corpus must have kept rows
+
+`lit-extracting` reads two signals at startup before fetching any full text:
+
+- `<review_root>/.scriptorium/phase-state.json::phases.screening.status` — must be `"complete"`.
+- `<review_root>/corpus.jsonl` — must contain at least one row at `status: "kept"`.
+
+If `screening.status` is anything other than `"complete"` (i.e. `pending`, `running`, `failed`) OR `corpus.jsonl` has no kept rows, STOP and invoke `lit-screening` first. Do not extract from candidate-status rows — they have not been screened against the inclusion/exclusion criteria, and extracting from them silently bypasses the PRISMA audit trail.
+
+If `enforce_v04=false` (advisory mode), warn the user that extraction is normally gated on a complete screening phase, append an `audit.jsonl` row with `mode=advisory`, and proceed only if `corpus.jsonl` has at least one `kept` row AND the user has explicitly acknowledged the missing `screening.status=complete` signal. Silent bypass is forbidden — advisory means *warn loudly and require acknowledgement*, not *suppress the warning*.
+
 Input: kept papers in `corpus.jsonl`. Output: full-text or abstract fallback per paper, plus structured `EvidenceEntry` rows in `evidence.jsonl`. Every row carries `[paper_id:locator]` where `locator` is `page:N`, `sec:<name>`, or a line range — never a numbered citation.
 
 ## Cascade (both runtimes)

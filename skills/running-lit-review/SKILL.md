@@ -9,6 +9,18 @@ This skill runs the end-to-end review pipeline for a research question. It is **
 
 **Defensive fallback (fire `using-scriptorium` first):** If the three-discipline preamble (Evidence-first claims / PRISMA audit trail / Contradiction surfacing) is not already loaded for this session, invoke `using-scriptorium` before continuing. Primary injection runs via the Claude Code `SessionStart` hook and the Cowork MCP `instructions` field — this fallback covers the rare case where neither fired.
 
+## HARD-GATE — surface per-phase refusals; halt the pipeline on any failure
+
+`running-lit-review` is the orchestrator. Every per-phase skill it dispatches to (`lit-scoping`, `lit-searching`, `lit-screening`, `lit-extracting`, `lit-synthesizing`, `lit-contradiction-check`, `lit-publishing`) carries its own HARD-GATE block keyed on `<review_root>/.scriptorium/phase-state.json`. The orchestrator's job is not to re-implement those gates — it is to **surface** their refusals and **halt** the pipeline on any failure.
+
+When a per-phase skill refuses (because `phase-state.json` shows the prerequisite phase is not `"complete"`, or because the phase's required artifact is missing), the orchestrator must:
+
+1. Print the failing phase's refusal message verbatim — name which phase blocked, which artifact was missing, and which skill the user should fire to fix it (e.g. "scoping is incomplete; fire `lit-scoping` first").
+2. Halt the pipeline at that phase. Do not attempt the next phase. Do not silently retry. The remaining steps in the phase sequence below stay un-executed.
+3. Append an `audit.jsonl` row recording which phase halted and why.
+
+If `enforce_v04=false` (advisory mode), the orchestrator does NOT halt. Instead, surface each per-phase warning, append an `audit.jsonl` row with `mode=advisory` per affected phase, and **continue** the pipeline so the user gets a draft even though the gates are not satisfied. The final report-back must name every phase that ran in advisory mode so the user knows which sections of the review are un-gated. This is the orchestrator-only behavior — per-phase skills require explicit acknowledgement before continuing; the orchestrator continues by default once advisory mode is in effect.
+
 ## Step 0 — Scope the review
 
 Before any phase runs, fire `lit-scoping`. It produces a validated `scope.json` that every downstream phase reads. If `scope.json` already exists in the review root, `lit-scoping` offers to resume, edit, or discard it. Do NOT ask the user for research question, criteria, year range, or publishing intent yourself — `lit-scoping` owns that conversation. Publishing intent specifically is captured via `lit-scoping`'s Tier 3 "output intent" dimension.

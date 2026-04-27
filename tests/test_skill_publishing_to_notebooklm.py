@@ -3,8 +3,13 @@ from pathlib import Path
 SKILLS = Path(__file__).resolve().parent.parent / "skills"
 
 
-def test_old_skill_directory_is_removed():
-    assert not (SKILLS / "lit-publishing").exists()
+# NOTE: v0.3 carried `test_old_skill_directory_is_removed` here, pinning that
+# `skills/lit-publishing/` did not exist (it had been renamed to
+# `publishing-to-notebooklm`). T09 reclaims the `lit-publishing` name for a
+# *different* role — a gate-only skill that enforces phase-state preconditions
+# before handing off to `publishing-to-notebooklm` for the `nlm` CLI mechanics.
+# The old guard is therefore dropped on purpose; the gate skill's existence
+# and shape are now pinned by tests/test_layer_a_hard_gates.py.
 
 
 def test_new_skill_exists():
