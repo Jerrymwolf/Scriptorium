@@ -5,6 +5,8 @@ description: Use when the user asks to pull full text of kept papers, extract me
 
 # Literature Extracting
 
+**Defensive fallback (fire `using-scriptorium` first):** If the three-discipline preamble (Evidence-first claims / PRISMA audit trail / Contradiction surfacing) is not already loaded for this session, invoke `using-scriptorium` before continuing. Primary injection runs via the Claude Code `SessionStart` hook and the Cowork MCP `instructions` field — this fallback covers the rare case where neither fired.
+
 Input: kept papers in `corpus.jsonl`. Output: full-text or abstract fallback per paper, plus structured `EvidenceEntry` rows in `evidence.jsonl`. Every row carries `[paper_id:locator]` where `locator` is `page:N`, `sec:<name>`, or a line range — never a numbered citation.
 
 ## Cascade (both runtimes)

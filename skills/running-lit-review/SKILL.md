@@ -7,7 +7,7 @@ description: Use when the user asks to run a lit review on a topic or research q
 
 This skill runs the end-to-end review pipeline for a research question. It is **runtime-agnostic** — the same ordered steps execute in Claude Code (via the `scriptorium` CLI) and in Cowork (via Consensus / Scholar Gateway / PubMed / NotebookLM MCPs). Routing lives in the `using-scriptorium` meta-skill; this skill just sequences the phases.
 
-**Fire using-scriptorium first.** Before doing anything else, invoke `using-scriptorium` so the runtime probe has run, the state-adapter vocabulary is loaded, and the three disciplines are primed. Then return here.
+**Defensive fallback (fire `using-scriptorium` first):** If the three-discipline preamble (Evidence-first claims / PRISMA audit trail / Contradiction surfacing) is not already loaded for this session, invoke `using-scriptorium` before continuing. Primary injection runs via the Claude Code `SessionStart` hook and the Cowork MCP `instructions` field — this fallback covers the rare case where neither fired.
 
 ## Step 0 — Scope the review
 

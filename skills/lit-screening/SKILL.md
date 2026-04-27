@@ -5,6 +5,8 @@ description: Use after lit-searching when the user wants to apply inclusion/excl
 
 # Literature Screening
 
+**Defensive fallback (fire `using-scriptorium` first):** If the three-discipline preamble (Evidence-first claims / PRISMA audit trail / Contradiction surfacing) is not already loaded for this session, invoke `using-scriptorium` before continuing. Primary injection runs via the Claude Code `SessionStart` hook and the Cowork MCP `instructions` field — this fallback covers the rare case where neither fired.
+
 Input: `corpus.jsonl` with every row at status `candidate`. Output: same file with each row at `kept` or `dropped`, plus a `reason` field. The audit trail captures the batch decision.
 
 ## Criteria vocabulary (both runtimes)

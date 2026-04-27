@@ -5,6 +5,8 @@ description: Use when the user asks to find/search/discover papers on a topic, w
 
 # Literature Searching
 
+**Defensive fallback (fire `using-scriptorium` first):** If the three-discipline preamble (Evidence-first claims / PRISMA audit trail / Contradiction surfacing) is not already loaded for this session, invoke `using-scriptorium` before continuing. Primary injection runs via the Claude Code `SessionStart` hook and the Cowork MCP `instructions` field — this fallback covers the rare case where neither fired.
+
 ## Precondition — scope.json is required
 
 `lit-searching` reads `<review_root>/scope.json` at startup. If it does not exist, STOP and invoke `lit-scoping` first — do not ask the user for query, year range, or criteria yourself. Those values come from the scope artifact.
