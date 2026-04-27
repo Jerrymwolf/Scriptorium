@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -285,8 +286,60 @@ def cmd_scope_validate(args, paths, stdout, stderr, stdin) -> int:
 
 
 def cmd_verify(args, paths, stdout, stderr, stdin) -> int:
-    if args.scope is not None:
-        scope_path = Path(args.scope)
+    from scriptorium.errors import EXIT_CODES
+
+    # --gate is the new canonical surface (v0.4); legacy flags still work too.
+    gate = getattr(args, "gate", None)
+
+    # Resolve effective flags: --gate overrides the legacy positional flags.
+    effective_scope = getattr(args, "scope", None)
+    effective_overview = getattr(args, "overview", None)
+    effective_synthesis = getattr(args, "synthesis", None)
+
+    if gate == "scope":
+        effective_overview = None
+        effective_synthesis = None
+        # --gate scope uses --scope path; default to paths.scope if not given.
+        if not effective_scope:
+            effective_scope = str(paths.scope)
+    elif gate == "overview":
+        effective_scope = None
+        effective_synthesis = None
+        # --gate overview requires --overview path.
+        if not effective_overview:
+            raise CLIError("--gate overview requires --overview <path>")
+    elif gate == "synthesis":
+        effective_scope = None
+        effective_overview = None
+        # --gate synthesis uses --synthesis path; default to paths.synthesis.
+        if not effective_synthesis:
+            effective_synthesis = str(paths.synthesis)
+    elif gate == "publish":
+        # Check phase-state: synthesis must be complete or overridden.
+        from scriptorium import phase_state
+        from scriptorium.errors import ScriptoriumError
+        try:
+            state = phase_state.read(paths)
+        except ScriptoriumError as e:
+            stderr.write(json.dumps({"error": str(e), "code": EXIT_CODES[e.symbol]}) + "\n")
+            return EXIT_CODES[e.symbol]
+        synth_status = state["phases"].get("synthesis", {}).get("status", "pending")
+        if synth_status in ("complete", "overridden"):
+            stdout.write(json.dumps({"ok": True, "synthesis_status": synth_status}) + "\n")
+            return 0
+        else:
+            msg = {
+                "ok": False,
+                "publish_blocked": True,
+                "reason": f"synthesis phase status is {synth_status!r}; must be 'complete' or 'overridden'",
+                "synthesis_status": synth_status,
+            }
+            stdout.write(json.dumps(msg) + "\n")
+            return EXIT_CODES["E_VERIFY_FAILED"]
+
+    # Legacy / gate-dispatched paths below.
+    if effective_scope is not None:
+        scope_path = Path(effective_scope)
         try:
             load_scope(scope_path)
         except FileNotFoundError:
@@ -297,11 +350,10 @@ def cmd_verify(args, paths, stdout, stderr, stdin) -> int:
             return 3
         stdout.write(f"scope.json is valid ({scope_path})\n")
         return 0
-    if getattr(args, 'overview', None):
-        from scriptorium.errors import EXIT_CODES
+    if effective_overview:
         from scriptorium.frontmatter import strip_frontmatter
         from scriptorium.overview.linter import OverviewLintError, lint_overview
-        body = strip_frontmatter(Path(args.overview).read_text(encoding="utf-8"))
+        body = strip_frontmatter(Path(effective_overview).read_text(encoding="utf-8"))
         try:
             lint_overview(body)
         except OverviewLintError as e:
@@ -309,7 +361,7 @@ def cmd_verify(args, paths, stdout, stderr, stdin) -> int:
             return EXIT_CODES["E_OVERVIEW_FAILED"]
         stdout.write(json.dumps({"ok": True}) + "\n")
         return 0
-    synth_path = Path(args.synthesis) if args.synthesis else None
+    synth_path = Path(effective_synthesis) if effective_synthesis else None
     if synth_path is None or not synth_path.exists():
         raise CLIError(f"synthesis file not found: {synth_path}")
     text = synth_path.read_text(encoding="utf-8")
@@ -377,12 +429,87 @@ def cmd_doctor(args, paths, stdout, stderr, stdin) -> int:
     return run_doctor(stdout)
 
 
+def cmd_phase_show(args, paths, stdout, stderr, stdin) -> int:
+    from scriptorium.errors import EXIT_CODES, ScriptoriumError
+    from scriptorium import phase_state
+    try:
+        state = phase_state.read(paths)
+    except ScriptoriumError as e:
+        stderr.write(json.dumps({"error": str(e), "code": EXIT_CODES[e.symbol]}) + "\n")
+        return EXIT_CODES[e.symbol]
+    stdout.write(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+    return 0
+
+
+def cmd_phase_set(args, paths, stdout, stderr, stdin) -> int:
+    from scriptorium.errors import EXIT_CODES, ScriptoriumError
+    from scriptorium import phase_state
+    try:
+        state = phase_state.set_phase(
+            paths,
+            args.phase,
+            args.status,
+            artifact_path=getattr(args, "artifact_path", None),
+            verifier_signature=getattr(args, "verifier_signature", None),
+            verified_at=getattr(args, "verified_at", None),
+        )
+    except ScriptoriumError as e:
+        stderr.write(json.dumps({"error": str(e), "code": EXIT_CODES[e.symbol]}) + "\n")
+        return EXIT_CODES[e.symbol]
+    stdout.write(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+    return 0
+
+
+def cmd_phase_override(args, paths, stdout, stderr, stdin) -> int:
+    from scriptorium.errors import EXIT_CODES, ScriptoriumError
+    from scriptorium import phase_state
+    actor = getattr(args, "actor", None) or os.environ.get("USER") or "cli"
+    try:
+        state = phase_state.override_phase(
+            paths,
+            args.phase,
+            reason=args.reason,
+            actor=actor,
+        )
+    except ScriptoriumError as e:
+        stderr.write(json.dumps({"error": str(e), "code": EXIT_CODES[e.symbol]}) + "\n")
+        return EXIT_CODES[e.symbol]
+    stdout.write(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+    return 0
+
+
+def cmd_reviewer_validate(args, paths, stdout, stderr, stdin) -> int:
+    from scriptorium.errors import EXIT_CODES, ScriptoriumError
+    from scriptorium.reviewers import validate_reviewer_output
+    try:
+        payload = json.loads(Path(args.json_file).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        stderr.write(json.dumps({"error": str(e), "code": EXIT_CODES["E_REVIEWER_INVALID"]}) + "\n")
+        return EXIT_CODES["E_REVIEWER_INVALID"]
+    try:
+        validate_reviewer_output(payload)
+    except ScriptoriumError as e:
+        stderr.write(json.dumps({"error": str(e), "code": EXIT_CODES[e.symbol]}) + "\n")
+        return EXIT_CODES[e.symbol]
+    stdout.write(json.dumps({"ok": True}) + "\n")
+    return 0
+
+
 def cmd_migrate_review(args, paths, stdout, stderr, stdin) -> int:
     import json as _json
     from scriptorium.errors import EXIT_CODES, ScriptoriumError
     from scriptorium.lock import ReviewLockHeld
     from scriptorium.migrate import migrate_review
     from scriptorium.paths import resolve_review_dir
+
+    # v0.4 contract: when --to is supplied it must be "0.4"; other values are
+    # rejected with a usage error. When --to is absent the legacy migration
+    # path runs unchanged (backward compatibility with existing callers).
+    to_version = getattr(args, "to", None)
+    if to_version is not None and to_version != "0.4":
+        stderr.write(f"scriptorium migrate-review: unsupported --to value {to_version!r}; only '0.4' is accepted\n")
+        return 2
+
     rp = resolve_review_dir(
         explicit=Path(args.review_dir_pos), vault_root=None, cwd=None, create=False,
     )
@@ -563,6 +690,12 @@ _HANDLERS: dict[tuple[str, str | None], _Handler] = {
     ("migrate-review", None): cmd_migrate_review,
     ("doctor", None): cmd_doctor,
     ("init", None): cmd_init,
+    # v0.4 phase management
+    ("phase", "show"): cmd_phase_show,
+    ("phase", "set"): cmd_phase_set,
+    ("phase", "override"): cmd_phase_override,
+    # v0.4 reviewer validation
+    ("reviewer-validate", None): cmd_reviewer_validate,
 }
 
 
@@ -660,6 +793,12 @@ def _build_parser() -> argparse.ArgumentParser:
     pv.add_argument("--synthesis", default=None)
     pv.add_argument("--overview", default=None, help="Run overview lint instead of synthesis verify")
     pv.add_argument("--scope", default=None, help="Validate a scope.json file")
+    pv.add_argument(
+        "--gate",
+        choices=["scope", "synthesis", "publish", "overview"],
+        default=None,
+        help="v0.4 canonical gate: scope | synthesis | publish | overview",
+    )
 
     ps = sub.add_parser("scope", help="Scope artifact (scope.json) operations")
     ps_sub = ps.add_subparsers(dest="subcommand", required=True)
@@ -691,10 +830,11 @@ def _build_parser() -> argparse.ArgumentParser:
     pi.add_argument("--skip-notebooklm", action="store_true")
     pi.add_argument("--vault", default=None)
 
-    pm = sub.add_parser("migrate-review", help="Migrate a legacy review to v0.3")
+    pm = sub.add_parser("migrate-review", help="Migrate a legacy review to v0.3/v0.4")
     pm.add_argument("review_dir_pos", metavar="review-dir")
     pm.add_argument("--dry-run", action="store_true")
     pm.add_argument("--json", dest="json_mode", action="store_true")
+    pm.add_argument("--to", dest="to", default=None, help="Target version (required: 0.4)")
 
     po = sub.add_parser("regenerate-overview", help="Rebuild overview.md")
     po.add_argument("review_dir_pos", metavar="review-dir")
@@ -708,6 +848,33 @@ def _build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--sources")
     pp.add_argument("--yes", action="store_true")
     pp.add_argument("--json", dest="json_mode", action="store_true")
+
+    # v0.4 phase management
+    pph = sub.add_parser("phase", help="Inspect and mutate per-review phase state")
+    pph_sub = pph.add_subparsers(dest="subcommand", required=True)
+
+    pph_sub.add_parser("show", help="Print the full phase-state JSON")
+
+    pph_set = pph_sub.add_parser("set", help="Set a phase to a given status")
+    pph_set.add_argument("phase", help="Phase name (e.g. synthesis)")
+    pph_set.add_argument("status", help="New status (pending|running|complete|failed)")
+    pph_set.add_argument("--artifact-path", default=None, dest="artifact_path",
+                         help="Path of the protected artifact for this phase")
+    pph_set.add_argument("--verifier-signature", default=None, dest="verifier_signature",
+                         help="sha256:<64 hex> signature of the artifact")
+    pph_set.add_argument("--verified-at", default=None, dest="verified_at",
+                         help="ISO-8601 UTC timestamp (auto-filled when omitted)")
+
+    pph_ov = pph_sub.add_parser("override", help="Mark a phase as overridden with a justification")
+    pph_ov.add_argument("phase", help="Phase name to override")
+    pph_ov.add_argument("--reason", required=True, help="Human-readable justification")
+    pph_ov.add_argument("--actor", default=None,
+                        help="Who is overriding (defaults to $USER or 'cli')")
+
+    # v0.4 reviewer validation
+    prv = sub.add_parser("reviewer-validate", help="Validate a reviewer output JSON file")
+    prv.add_argument("json_file", metavar="json-file",
+                     help="Path to the reviewer output JSON file")
 
     return p
 
