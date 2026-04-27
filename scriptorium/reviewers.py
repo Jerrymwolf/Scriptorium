@@ -38,6 +38,9 @@ from scriptorium.phase_state import _SHA256_SIG_RE
 _VALID_REVIEWERS = frozenset({"cite", "contradiction"})
 _VALID_RUNTIMES = frozenset({"claude_code", "cowork"})
 _VALID_VERDICTS = frozenset({"pass", "fail", "skipped"})
+_VALID_FINDING_KINDS = frozenset(
+    {"unsupported_claim", "bad_locator", "missed_contradiction", "other"}
+)
 
 _REQUIRED_FIELDS = (
     "reviewer",
@@ -96,6 +99,24 @@ def validate_reviewer_output(payload: dict[str, Any]) -> dict[str, Any]:
 
     if verdict == "fail" and len(findings) == 0:
         _fail("verdict=fail requires at least one finding")
+
+    # Validate individual finding objects.
+    for idx, finding in enumerate(findings):
+        if not isinstance(finding, dict):
+            _fail(f"findings[{idx}] must be a JSON object")
+        if "kind" not in finding:
+            _fail(f"findings[{idx}] missing required field 'kind'")
+        kind = finding["kind"]
+        if kind not in _VALID_FINDING_KINDS:
+            _fail(
+                f"findings[{idx}].kind must be one of "
+                f"{sorted(_VALID_FINDING_KINDS)}, got {kind!r}"
+            )
+        for str_field in ("paper_id", "locator", "detail"):
+            if str_field in finding and not isinstance(finding[str_field], str):
+                _fail(
+                    f"findings[{idx}].{str_field} must be a string"
+                )
 
     # Validate hash fields.
     for hash_field in ("synthesis_sha256", "reviewer_prompt_sha256"):

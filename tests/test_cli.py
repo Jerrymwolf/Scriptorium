@@ -431,21 +431,81 @@ def test_migrate_review_rejects_unknown_to_version(review_dir, tmp_path):
     assert "unsupported" in err.lower() or "0.4" in err
 
 
+def _legacy_review_fixture(tmp_path: Path) -> Path:
+    """Minimal legacy review directory accepted by migrate-review."""
+    root = tmp_path / "reviews" / "test-topic"
+    root.mkdir(parents=True)
+    (root / "synthesis.md").write_text(
+        "Some claim [paper1:page:1].", encoding="utf-8"
+    )
+    (root / "contradictions.md").write_text("", encoding="utf-8")
+    (root / "audit").mkdir(parents=True)
+    (root / "audit" / "audit.md").write_text("# PRISMA Audit Trail\n\n", encoding="utf-8")
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "evidence.jsonl").write_text(
+        json.dumps({
+            "paper_id": "paper1", "locator": "page:1",
+            "claim": "some claim", "quote": "some claim",
+            "direction": "positive", "concept": "test",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    return root
+
+
 def test_migrate_review_to_04_accepted(review_dir, tmp_path):
-    from scriptorium.paths import resolve_review_dir
-    from scriptorium.storage.corpus import add_papers
-    from scriptorium.sources.base import Paper
-    rdir = tmp_path / "mig_review2"
-    rdir.mkdir()
-    # create minimal structure expected by migrate
-    (rdir / "data").mkdir()
-    (rdir / "audit").mkdir()
-    (rdir / "sources" / "pdfs").mkdir(parents=True)
-    (rdir / "sources" / "papers").mkdir(parents=True)
-    (rdir / "data" / "extracts").mkdir(parents=True)
-    (rdir / "audit" / "overview-archive").mkdir(parents=True)
-    (rdir / ".scriptorium").mkdir(parents=True)
-    rc, out, err = run(["migrate-review", str(rdir), "--to", "0.4"], review_dir)
-    # Only requirement: it accepted --to 0.4 (no argparse error)
-    # It may succeed or fail based on migration logic, but rc != 2 from argparse
-    assert rc != 2 or "unrecognized" not in err.lower()
+    """migrate-review --to 0.4 --dry-run must succeed (rc == 0, no stderr)."""
+    rdir = _legacy_review_fixture(tmp_path)
+    rc, out, err = run(["migrate-review", str(rdir), "--to", "0.4", "--dry-run"], review_dir)
+    assert rc == 0, f"expected rc=0, got rc={rc}; stderr={err!r}"
+    assert err == "", f"unexpected stderr: {err!r}"
+
+
+def test_reviewer_validate_bad_finding_kind(review_dir, tmp_path):
+    """A finding with an invalid kind value must be rejected with exit 22."""
+    payload = {
+        "reviewer": "cite",
+        "runtime": "claude_code",
+        "verdict": "fail",
+        "summary": "Found issues.",
+        "findings": [
+            {
+                "kind": "garbage",
+                "paper_id": "smith2020",
+                "locator": "page:1",
+                "detail": "bad claim",
+            }
+        ],
+        "synthesis_sha256": "sha256:" + "a" * 64,
+        "reviewer_prompt_sha256": "sha256:" + "b" * 64,
+        "created_at": "2026-01-01T00:00:00Z",
+    }
+    f = tmp_path / "reviewer_bad_kind.json"
+    f.write_text(json.dumps(payload), encoding="utf-8")
+    rc, out, err = run(["reviewer-validate", str(f)], review_dir)
+    assert rc == 22, f"expected exit 22, got {rc}"
+    assert "garbage" in err, f"stderr should name the bad value; got: {err!r}"
+
+
+def test_reviewer_validate_finding_missing_kind(review_dir, tmp_path):
+    """A finding with no 'kind' field must be rejected with exit 22."""
+    payload = {
+        "reviewer": "cite",
+        "runtime": "claude_code",
+        "verdict": "fail",
+        "summary": "Found issues.",
+        "findings": [
+            {
+                "paper_id": "jones2021",
+                "locator": "page:2",
+                "detail": "unsupported",
+            }
+        ],
+        "synthesis_sha256": "sha256:" + "c" * 64,
+        "reviewer_prompt_sha256": "sha256:" + "d" * 64,
+        "created_at": "2026-01-01T00:00:00Z",
+    }
+    f = tmp_path / "reviewer_missing_kind.json"
+    f.write_text(json.dumps(payload), encoding="utf-8")
+    rc, out, err = run(["reviewer-validate", str(f)], review_dir)
+    assert rc == 22, f"expected exit 22, got {rc}"
