@@ -42,13 +42,15 @@ All citations use the token `[paper_id:locator]`. The locator format is defined 
 
 **Claude Code:** after you draft `synthesis.md`, run `scriptorium verify --synthesis synthesis.md`. Exit 0 = clean; exit 3 = unsupported sentences or missing citations found. The CC PostToolUse hook runs the same check automatically — it is belt-and-suspenders; your skill step is the discipline.
 
-**Cowork:** there is no hook and no `scriptorium verify`. You must walk each sentence in-prose: for every `[paper_id:locator]` token, confirm it exists in the `evidence` note of the state adapter. If a token is missing, strip or flag it yourself.
+**Cowork:** ⚠ no hook / no `scriptorium verify`: Cowork has neither the PostToolUse cite-check hook nor the `scriptorium verify` CLI. What is lost: the automated belt-and-suspenders pass that catches drift between `synthesis.md` and `evidence.jsonl`. You must walk each sentence in-prose: for every `[paper_id:locator]` token, confirm it exists in the `evidence` note of the state adapter. If a token is missing, strip or flag it yourself — this is the only check standing between fabrication and the user.
 
-## What not to do
+## Red flags — do NOT
 
-- Do not invent paper ids or locators. "I think this is in Smith (2020)" is not a citation.
-- Do not merge contradictory evidence into a single consensus sentence to look cleaner. Name the disagreement.
-- Do not omit the cite-check. "I'll just scan visually" is how unsupported claims ship into dissertations.
+- Do NOT invent paper ids or locators. "I think this is in Smith (2020)" is not a citation; only `[paper_id:locator]` tokens that resolve to `evidence.jsonl` are.
+- Do NOT merge contradictory evidence into a single consensus sentence to look cleaner. Name the disagreement.
+- Do NOT omit the cite-check. "I'll just scan visually" is how unsupported claims ship into dissertations.
+- Do NOT use numbered citations (`[1]`, `[2]`). They are Consensus's grammar and are stripped at search time; only `[paper_id:locator]` is durable.
+- Do NOT write a transition that smuggles an empirical claim into uncited prose. Transitions are allowed to be uncited only when they make no claim of their own.
 
 ## Hand-off
 

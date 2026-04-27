@@ -57,7 +57,7 @@ scriptorium audit append --phase extraction --action fulltext.resolved \
 
 ## Workflow — Cowork path
 
-Unpaywall and arXiv are not available in Cowork. The cascade collapses to **user_pdf → pmc (via PubMed MCP) → abstract_only**.
+⚠ no Unpaywall / no arXiv: Cowork has no platform CLI for these sources. The cascade collapses to **user_pdf → pmc (via PubMed MCP) → abstract_only**. What is lost: legal-OA discovery via Unpaywall and preprint full text via arXiv. Coverage drops sharply for any paper that is not user-uploaded and not on PMC; expect a higher proportion of `abstract_only` terminal states.
 
 For each paper:
 1. If the user uploaded a PDF, add it as a NotebookLM source via `mcp__notebooklm-mcp__source_add(source_type="file", file_path=...)`. NotebookLM becomes the full-text store.
@@ -81,6 +81,14 @@ The synthesis layer reads these when verifying `[paper_id:locator]` tokens. Inve
 
 - `direction`: one of `positive | negative | neutral | mixed`. "Positive" means the evidence supports the concept; "negative" means it contradicts it; "mixed" means the finding has both directions in the same paper; "neutral" means the paper is relevant but not directionally.
 - `concept`: a short slug (`caffeine_wm_accuracy`, not "caffeine's effect on working memory accuracy in adults"). Downstream, `lit-contradiction-check` groups by concept and names positive/negative pairs.
+
+## Red flags — do NOT
+
+- Do NOT extract from rows whose `status != "kept"`. Candidate-status rows have not passed screening; extracting from them silently bypasses the inclusion/exclusion criteria and the PRISMA audit trail.
+- Do NOT fabricate `locator` values. A `page:N` that doesn't map to an actual page in the PDF, or a `sec:Methods` for a section the paper doesn't have, is an evidence-fabrication red flag.
+- Do NOT invent a `paper_id` when full-text retrieval fails. The cascade's terminal state is `abstract_only`, not "skip the row" and not "make up an id".
+- Do NOT skip the `scriptorium audit append --phase extraction` row (CC) or the equivalent audit note append (Cowork). Each `fulltext.resolved` step gets its own audit row.
+- Do NOT collapse a quote into your own paraphrase before storing it in the `quote` field. The quote is the verbatim source string the synthesis layer can re-verify.
 
 ## Hand-off
 

@@ -44,6 +44,8 @@ scriptorium audit append --phase screening --action rule.apply \
 
 ## Workflow — Cowork path
 
+⚠ manual screening: no `scriptorium screen` CLI in Cowork — you are the screener, evaluating each row in-prose against the criteria. What is lost: the batch idempotency and exact `{"kept": N, "dropped": M}` counts the CLI emits; the deterministic order-of-evaluation guarantee depends on you applying year → language → must_include → must_exclude in that order on every row. Slow down and apply the criteria mechanically.
+
 1. Confirm the criteria with the user.
 2. Read the `corpus` note/page from the state adapter.
 3. For each row, evaluate the criteria in-prose (you are the screener). Update `status` and `reason` inline.
@@ -59,6 +61,14 @@ scriptorium audit append --phase screening --action rule.apply \
 ## Reversibility
 
 Screening is reversible — `set_status(paper_id, "candidate", reason=None)` restores a row. If the user wants to re-screen with different criteria, drop them all back to `candidate` first, then re-run.
+
+## Red flags — do NOT
+
+- Do NOT drop a paper without setting `reason` to the failing criterion. A `dropped` row with no `reason` is invisible to the audit trail.
+- Do NOT re-screen a corpus that already has `kept`/`dropped` rows without first resetting them to `candidate`. Re-running over a partially-screened corpus produces silent inconsistency.
+- Do NOT skip the `scriptorium audit append --phase screening` row (CC) or the equivalent `audit` note append (Cowork). Screening with no audit row is a PRISMA violation.
+- Do NOT override an exclusion criterion silently to keep a paper you like. Either change the criteria explicitly (and re-run) or accept the drop.
+- Do NOT re-evaluate criteria in a different order than year → language → must_include → must_exclude. The `reason` field depends on first-failing-criterion semantics.
 
 ## Hand-off
 
