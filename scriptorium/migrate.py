@@ -146,6 +146,8 @@ def _present_and_nonempty(p: Path) -> bool:
     """A backfill-eligible artifact: file exists and has size > 0 bytes."""
     try:
         return p.exists() and p.stat().st_size > 0
+    # Any inspection failure (perms, broken symlink, race) → treat as ineligible
+    # rather than aborting the whole backfill. Tolerance is correct here.
     except OSError:
         return False
 
@@ -203,31 +205,57 @@ def backfill_phase_state_v04(
         return [name for name, _artifact in eligible]
 
     # Real run: ensure phase-state exists, then upgrade pending → running for
-    # each eligible phase.
+    # each eligible phase. M2: capture init's return value to avoid a
+    # redundant read() of the file we just wrote.
     if not review_paths.phase_state.exists():
-        phase_state.init(review_paths)
+        state = phase_state.init(review_paths)
+    else:
+        state = phase_state.read(review_paths)
 
     upgraded: list[str] = []
-    state = phase_state.read(review_paths)
-    for name, artifact in eligible:
-        entry = state["phases"].get(name, {})
-        if entry.get("status") != "pending":
-            continue  # idempotent — never downgrade user state
-        phase_state.set_phase(
+    current_phase: Optional[str] = None
+    try:
+        for name, artifact in eligible:
+            current_phase = name
+            entry = state["phases"].get(name, {})
+            if entry.get("status") != "pending":
+                continue  # idempotent — never downgrade user state
+            phase_state.set_phase(
+                review_paths,
+                name,
+                "running",
+                artifact_path=str(artifact.resolve()),
+            )
+            upgraded.append(name)
+    except Exception as e:
+        # Mid-loop failure: some phases may already be on disk. Emit a
+        # ``partial`` audit row so forensic debugging is possible, then
+        # re-raise so the CLI surfaces the error to the user.
+        append_audit(
             review_paths,
-            name,
-            "running",
-            artifact_path=str(artifact.resolve()),
+            AuditEntry(
+                phase="migration",
+                action="backfill-phase-state-v0.4",
+                status="partial",
+                details={
+                    "upgraded_phases": upgraded,
+                    "failed_phase": current_phase,
+                    "error": str(e),
+                },
+            ),
         )
-        upgraded.append(name)
+        raise
 
-    append_audit(
-        review_paths,
-        AuditEntry(
-            phase="migration",
-            action="backfill-phase-state-v0.4",
-            status="success",
-            details={"upgraded_phases": upgraded},
-        ),
-    )
+    # I2: no upgrades → no audit row. Every audit row should be meaningful;
+    # do NOT restore an unconditional append "to be safe."
+    if upgraded:
+        append_audit(
+            review_paths,
+            AuditEntry(
+                phase="migration",
+                action="backfill-phase-state-v0.4",
+                status="success",
+                details={"upgraded_phases": upgraded},
+            ),
+        )
     return upgraded

@@ -69,8 +69,20 @@ def test_save_config_from_kv_rejects_non_int_for_parallel_cap(
 ) -> None:
     """Coercion must raise ValueError on garbage values for int fields."""
     path = tmp_path / "config.toml"
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Cannot coerce"):
         save_config_from_kv(path, "extraction_parallel_cap", "not-an-int")
+
+
+def test_save_config_from_kv_accepts_negative_int(tmp_path: Path) -> None:
+    """Pin the contract: ``_coerce("-1", int) == -1``. The implementation
+    handles negatives correctly via ``int("-1")``; this guards against a
+    future overzealous "validate non-negative" patch silently breaking
+    legitimate negative configuration values.
+    """
+    path = tmp_path / "config.toml"
+    save_config_from_kv(path, "extraction_parallel_cap", "-1")
+    cfg = load_config(path)
+    assert cfg.extraction_parallel_cap == -1
 
 
 # ----------------------------------------------------------------------------
@@ -195,9 +207,9 @@ def test_backfill_creates_phase_state_with_running_for_present_artifacts(
         assert entry["status"] == "running", (
             f"{phase} should be running; got {entry['status']}"
         )
-        assert entry["artifact_path"] == str(artifact), (
+        assert entry["artifact_path"] == str(artifact.resolve()), (
             f"{phase} artifact_path mismatch: {entry['artifact_path']!r} "
-            f"vs {str(artifact)!r}"
+            f"vs {str(artifact.resolve())!r}"
         )
 
     # No scope.json or corpus.jsonl in the legacy fixture → still pending.
@@ -231,9 +243,9 @@ def test_backfill_present_scope_and_corpus_marks_running(tmp_path: Path) -> None
     assert rc == 0
     state = json.loads(paths.phase_state.read_text(encoding="utf-8"))
     assert state["phases"]["scoping"]["status"] == "running"
-    assert state["phases"]["scoping"]["artifact_path"] == str(paths.scope)
+    assert state["phases"]["scoping"]["artifact_path"] == str(paths.scope.resolve())
     assert state["phases"]["search"]["status"] == "running"
-    assert state["phases"]["search"]["artifact_path"] == str(paths.corpus)
+    assert state["phases"]["search"]["artifact_path"] == str(paths.corpus.resolve())
 
 
 def test_backfill_skips_empty_artifacts(tmp_path: Path) -> None:
@@ -425,6 +437,18 @@ def test_backfill_appends_audit_row(tmp_path: Path) -> None:
     assert "contradiction" in upgraded
     assert "audit" in upgraded
 
+    # M1: backfill must *append*, not replace. The prior migrate-review row
+    # from the legacy v0.3 migration step must still be present.
+    assert len(rows) >= 2, (
+        f"expected at least 2 audit rows (migrate-review + backfill); "
+        f"got {len(rows)}"
+    )
+    migrate_review_rows = [r for r in rows if r.action == "migrate-review"]
+    assert len(migrate_review_rows) >= 1, (
+        "expected at least one migrate-review audit row to coexist with "
+        "the backfill row; got none"
+    )
+
 
 def test_backfill_does_not_downgrade_existing_running_state(
     tmp_path: Path,
@@ -451,3 +475,68 @@ def test_backfill_does_not_downgrade_existing_running_state(
     assert state["phases"]["synthesis"]["status"] == "overridden"
     # Other phases should still get upgraded since they were pending.
     assert state["phases"]["extraction"]["status"] == "running"
+
+
+def test_backfill_partial_failure_writes_audit_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If ``set_phase`` raises mid-loop, backfill must:
+
+    * Leave the already-written phases on disk (no rollback).
+    * Append a single audit row with ``status="partial"`` whose details
+      record the upgraded phases, the failed phase, and the error string.
+    * Re-raise the exception so the CLI surfaces the failure.
+    """
+    from scriptorium import migrate
+    from scriptorium.errors import ScriptoriumError
+
+    root = _legacy_review(tmp_path, pre_migrated=True)
+    paths = ReviewPaths(root=root)
+    # Add scope + corpus so eligible has at least 3 phases ahead of the
+    # extraction failure point — gives us deterministic upgrades-then-fail.
+    paths.scope.write_text("{}", encoding="utf-8")
+    paths.corpus.write_text('{"id":"p1"}\n', encoding="utf-8")
+
+    real_set_phase = phase_state.set_phase
+    calls: list[str] = []
+
+    def flaky_set_phase(rp, name, status, **kwargs):
+        calls.append(name)
+        if len(calls) > 2:
+            # Third call fails. First two succeed (real disk writes).
+            raise ScriptoriumError(
+                "synthetic failure mid-backfill",
+                symbol="E_VERIFY_FAILED",
+            )
+        return real_set_phase(rp, name, status, **kwargs)
+
+    monkeypatch.setattr(phase_state, "set_phase", flaky_set_phase)
+
+    with pytest.raises(ScriptoriumError, match=r"synthetic failure"):
+        migrate.backfill_phase_state_v04(paths, dry_run=False)
+
+    # Two phases successfully upgraded on disk before the failure.
+    state = json.loads(paths.phase_state.read_text(encoding="utf-8"))
+    upgraded_on_disk = [
+        n for n, e in state["phases"].items() if e["status"] == "running"
+    ]
+    assert len(upgraded_on_disk) == 2, (
+        f"expected 2 phases upgraded before failure; got {upgraded_on_disk}"
+    )
+
+    # Exactly one partial audit row was written.
+    rows = load_audit(paths)
+    backfill_rows = [
+        r for r in rows if r.action == "backfill-phase-state-v0.4"
+    ]
+    assert len(backfill_rows) == 1, (
+        f"expected exactly one partial audit row; got {len(backfill_rows)}"
+    )
+    row = backfill_rows[0]
+    assert row.status == "partial", (
+        f"expected status='partial'; got {row.status!r}"
+    )
+    assert row.phase == "migration"
+    assert len(row.details["upgraded_phases"]) == 2
+    assert row.details["failed_phase"] is not None
+    assert "synthetic failure" in row.details["error"]
