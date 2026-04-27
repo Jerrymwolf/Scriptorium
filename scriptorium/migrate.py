@@ -1,4 +1,4 @@
-"""Review migration (§10.1)."""
+"""Review migration (§10.1) plus v0.4 phase-state backfill (§10, T05)."""
 from __future__ import annotations
 
 import re
@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from scriptorium import phase_state
 from scriptorium.errors import ScriptoriumError
 from scriptorium.frontmatter import (
     ReviewArtifactFrontmatter, read_frontmatter, strip_frontmatter, write_frontmatter,
@@ -122,3 +123,111 @@ def migrate_review(review_paths: ReviewPaths, *, dry_run: bool) -> MigrationResu
             )
 
     return MigrationResult(changed_files=changed, skipped_files=skipped, warnings=warnings)
+
+
+# ---------------------------------------------------------------------------
+# v0.4 phase-state backfill (§10, T05)
+# ---------------------------------------------------------------------------
+
+
+# Phase → ReviewPaths attribute. screening has no canonical v0.3 artifact, so
+# it stays pending after backfill.
+_PHASE_ARTIFACT_ATTR: tuple[tuple[str, str], ...] = (
+    ("scoping", "scope"),
+    ("search", "corpus"),
+    ("extraction", "evidence"),
+    ("synthesis", "synthesis"),
+    ("contradiction", "contradictions"),
+    ("audit", "audit_md"),
+)
+
+
+def _present_and_nonempty(p: Path) -> bool:
+    """A backfill-eligible artifact: file exists and has size > 0 bytes."""
+    try:
+        return p.exists() and p.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def _phases_eligible_for_backfill(
+    review_paths: ReviewPaths,
+) -> list[tuple[str, Path]]:
+    """Return ``[(phase, artifact_path)]`` for each phase whose artifact is
+    present and non-empty. Order matches :data:`_PHASE_ARTIFACT_ATTR`.
+    """
+    eligible: list[tuple[str, Path]] = []
+    for phase, attr in _PHASE_ARTIFACT_ATTR:
+        artifact = getattr(review_paths, attr)
+        if _present_and_nonempty(artifact):
+            eligible.append((phase, artifact))
+    return eligible
+
+
+def backfill_phase_state_v04(
+    review_paths: ReviewPaths, *, dry_run: bool
+) -> list[str]:
+    """Backfill ``phase-state.json`` from existing review artifacts (§10).
+
+    Rules:
+
+    * If ``phase-state.json`` doesn't exist, initialise it (7 pending phases).
+    * For each canonical phase whose artifact is present and non-empty, and
+      whose current status is ``pending``, set status to ``running`` with
+      ``artifact_path`` set to the absolute artifact path.
+    * Phases already in any non-pending status are left untouched
+      (idempotence — never downgrade user state).
+    * Never set status to ``complete`` — legacy reviews have no v0.4
+      verifier signature, so the honest status for a present artifact is
+      ``running``.
+    * On dry-run, no writes occur; the returned list still reports which
+      phases would be upgraded.
+    * On real run, a single audit row is appended documenting the backfill.
+
+    Returns the list of phase names that were (or would be) upgraded from
+    ``pending`` to ``running`` in this call.
+    """
+    eligible = _phases_eligible_for_backfill(review_paths)
+
+    if dry_run:
+        # We need the *current* phase-state contents to decide which phases
+        # would actually be upgraded (some may already be non-pending).
+        if review_paths.phase_state.exists():
+            current = phase_state.read(review_paths)
+            return [
+                name
+                for name, _artifact in eligible
+                if current["phases"].get(name, {}).get("status") == "pending"
+            ]
+        # No phase-state.json yet → all eligible phases would be upgraded.
+        return [name for name, _artifact in eligible]
+
+    # Real run: ensure phase-state exists, then upgrade pending → running for
+    # each eligible phase.
+    if not review_paths.phase_state.exists():
+        phase_state.init(review_paths)
+
+    upgraded: list[str] = []
+    state = phase_state.read(review_paths)
+    for name, artifact in eligible:
+        entry = state["phases"].get(name, {})
+        if entry.get("status") != "pending":
+            continue  # idempotent — never downgrade user state
+        phase_state.set_phase(
+            review_paths,
+            name,
+            "running",
+            artifact_path=str(artifact.resolve()),
+        )
+        upgraded.append(name)
+
+    append_audit(
+        review_paths,
+        AuditEntry(
+            phase="migration",
+            action="backfill-phase-state-v0.4",
+            status="success",
+            details={"upgraded_phases": upgraded},
+        ),
+    )
+    return upgraded

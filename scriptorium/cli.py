@@ -499,7 +499,7 @@ def cmd_migrate_review(args, paths, stdout, stderr, stdin) -> int:
     import json as _json
     from scriptorium.errors import EXIT_CODES, ScriptoriumError
     from scriptorium.lock import ReviewLockHeld
-    from scriptorium.migrate import migrate_review
+    from scriptorium.migrate import backfill_phase_state_v04, migrate_review
     from scriptorium.paths import resolve_review_dir
 
     # v0.4 contract: when --to is supplied it must be "0.4"; other values are
@@ -521,6 +521,25 @@ def cmd_migrate_review(args, paths, stdout, stderr, stdin) -> int:
     except ScriptoriumError as e:
         stderr.write(f"scriptorium migrate-review: {e}\n")
         return EXIT_CODES[e.symbol]
+
+    # v0.4 §10: when --to 0.4 is supplied, backfill phase-state.json after
+    # the legacy migration completes. The legacy migration's lock has been
+    # released by now, so phase_state.set_phase can take it cleanly.
+    if to_version == "0.4":
+        try:
+            upgraded = backfill_phase_state_v04(rp, dry_run=args.dry_run)
+        except ReviewLockHeld as e:
+            stderr.write(f"scriptorium migrate-review: {e}\n")
+            return EXIT_CODES["E_LOCKED"]
+        except ScriptoriumError as e:
+            stderr.write(f"scriptorium migrate-review: {e}\n")
+            return EXIT_CODES[e.symbol]
+        if upgraded:
+            verb = "would upgrade" if args.dry_run else "upgraded"
+            res.warnings.append(
+                f"phase-state backfill: {verb} {', '.join(upgraded)}"
+            )
+
     if args.json_mode:
         stdout.write(_json.dumps(res.to_dict()) + "\n")
     else:
