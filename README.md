@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status: beta](https://img.shields.io/badge/status-beta%20v0.3.1-blue.svg)](#status)
+[![Status: beta](https://img.shields.io/badge/status-beta%20v0.4.0-blue.svg)](#status)
 
 Are you tired of Ai research that all over the place? Moving citations from Elicit to Research Rabbit to Zotero, all while trying to keep the sources and context clear and organized? It is a challenge!   
 
