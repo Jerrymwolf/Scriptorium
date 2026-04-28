@@ -37,6 +37,8 @@ EXPECTED = {
     "E_EXTRACT_UNKNOWN_BACKEND": 27,
     "E_EXTRACT_NO_BACKEND": 28,
     "E_EXTRACT_PAPER_NOT_KEPT": 29,
+    # v0.4 Layer B — synthesis-exit reviewer gate (T14)
+    "E_REVIEWER_ARTIFACT_MISSING": 30,
     "E_INTERRUPTED": 130,
 }
 

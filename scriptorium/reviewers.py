@@ -1,8 +1,17 @@
-"""Reviewer output validation for Scriptorium v0.4 (T04 minimal surface).
+"""Reviewer output validation and synthesis-exit gate for Scriptorium v0.4.
 
-This module exposes only ``validate_reviewer_output`` and its supporting
-constants. T14 will extend this module with ``append_reviewer_output``,
-``finalize_synthesis_phase``, and agent-prompt logic.
+T04 introduced :func:`validate_reviewer_output` (§6.3 schema). T14 extends
+this module with the synthesis-exit gate:
+
+* :func:`append_reviewer_output` — write one auditable row per reviewer
+  invocation.
+* :func:`finalize_synthesis_phase` — aggregate cite + contradiction
+  verdicts and promote ``phases.synthesis`` to ``complete`` only when
+  both verdicts are ``pass``.
+
+The Claude Code agent prompts that produce these payloads live at
+``agents/lit-cite-reviewer.md`` and ``agents/lit-contradiction-reviewer.md``.
+T15 owns the Cowork branch.
 
 §6.3 Reviewer output schema::
 
@@ -28,11 +37,17 @@ Rules:
 """
 from __future__ import annotations
 
-import re
+import copy
 from typing import Any
 
 from scriptorium.errors import ScriptoriumError
-from scriptorium.phase_state import SHA256_SIG_RE
+from scriptorium.paths import ReviewPaths
+from scriptorium.phase_state import (
+    SHA256_SIG_RE,
+    set_phase,
+    verifier_signature_for,
+)
+from scriptorium.storage.audit import AuditEntry, append_audit
 
 
 _VALID_REVIEWERS = frozenset({"cite", "contradiction"})
@@ -130,3 +145,168 @@ def validate_reviewer_output(payload: dict[str, Any]) -> dict[str, Any]:
             )
 
     return payload
+
+
+# ---------------------------------------------------------------------------
+# T14 — synthesis-exit gate
+# ---------------------------------------------------------------------------
+
+
+# Verdict → audit-status mapping (§6.3 + audit AuditStatus enum).
+# pass → success, fail → failure, skipped → skipped. The skipped row is the
+# only audit row that itself signals "not run"; we want it to remain visible
+# rather than collapse into a generic warning.
+_VERDICT_TO_AUDIT_STATUS: dict[str, str] = {
+    "pass": "success",
+    "fail": "failure",
+    "skipped": "skipped",
+}
+
+
+def append_reviewer_output(
+    paths: ReviewPaths, payload: dict[str, Any]
+) -> None:
+    """Validate and append one reviewer output row to the audit log.
+
+    Writes a single ``AuditEntry`` to ``audit.jsonl`` with:
+
+      * ``phase = "synthesis"`` — the synthesis-exit gate is part of the
+        synthesis phase end-state.
+      * ``action = "reviewer.<reviewer>"`` — ``reviewer.cite`` or
+        ``reviewer.contradiction``.
+      * ``status`` mapped from ``payload["verdict"]`` via
+        :data:`_VERDICT_TO_AUDIT_STATUS`.
+      * ``details`` = the full validated payload (preserves verdict,
+        summary, findings, hashes, runtime, timestamp).
+
+    The full payload in ``details`` means an auditor can reconstruct the
+    reviewer's exact verdict from ``audit.jsonl`` alone — no separate
+    artifact file is needed. Validation runs first, so a malformed
+    payload fails-fast with ``E_REVIEWER_INVALID`` and never reaches the
+    audit writer.
+    """
+    validated = validate_reviewer_output(payload)
+    reviewer = validated["reviewer"]
+    verdict = validated["verdict"]
+    entry = AuditEntry(
+        phase="synthesis",
+        action=f"reviewer.{reviewer}",
+        status=_VERDICT_TO_AUDIT_STATUS[verdict],
+        # deepcopy so a later caller mutating their payload object can't
+        # retroactively rewrite the audit row in memory.
+        details=copy.deepcopy(validated),
+    )
+    append_audit(paths, entry)
+
+
+def finalize_synthesis_phase(
+    paths: ReviewPaths,
+    *,
+    cite_result: dict[str, Any],
+    contradiction_result: dict[str, Any],
+) -> dict[str, Any]:
+    """Aggregate the two reviewer verdicts and update ``phases.synthesis``.
+
+    Steps (in order):
+
+      1. Validate both payloads. If either is malformed, raise
+         ``E_REVIEWER_INVALID`` BEFORE writing any audit row or
+         mutating phase-state.
+      2. Pin the slot/reviewer-name contract: ``cite_result`` must carry
+         ``reviewer="cite"``; ``contradiction_result`` must carry
+         ``reviewer="contradiction"``.
+      3. Append two reviewer audit rows (cite first, then contradiction).
+      4. Decide aggregate verdict:
+           - ``synthesis_status = "complete"`` IFF both verdicts are
+             ``pass``;
+           - else ``synthesis_status = "running"`` (recoverable — the
+             user re-drafts and re-reviews; we don't burn ``failed``
+             on reviewer-fail).
+      5. If ``complete``: require ``synthesis.md`` to exist (else raise
+         ``E_REVIEWER_ARTIFACT_MISSING``); compute its sha256; promote
+         the phase via :func:`phase_state.set_phase`.
+         If ``running``: clear ``synthesis`` to running with no
+         signature.
+      6. Append a ``synthesis.gate`` audit row summarizing the
+         aggregation.
+
+    Returns a stable dict::
+
+        {
+          "synthesis_status": "complete" | "running",
+          "phase_state": <full phase-state dict>,
+          "cite_verdict": "pass" | "fail" | "skipped",
+          "contradiction_verdict": "pass" | "fail" | "skipped",
+        }
+    """
+    # Step 1 — validate fail-fast.
+    cite_validated = validate_reviewer_output(cite_result)
+    contra_validated = validate_reviewer_output(contradiction_result)
+
+    # Step 2 — slot/reviewer-name contract.
+    if cite_validated["reviewer"] != "cite":
+        raise ScriptoriumError(
+            "cite_result must carry reviewer='cite', got "
+            f"{cite_validated['reviewer']!r}",
+            symbol="E_REVIEWER_INVALID",
+        )
+    if contra_validated["reviewer"] != "contradiction":
+        raise ScriptoriumError(
+            "contradiction_result must carry reviewer='contradiction', got "
+            f"{contra_validated['reviewer']!r}",
+            symbol="E_REVIEWER_INVALID",
+        )
+
+    # Step 3 — reviewer audit rows.
+    append_reviewer_output(paths, cite_validated)
+    append_reviewer_output(paths, contra_validated)
+
+    cite_verdict = cite_validated["verdict"]
+    contra_verdict = contra_validated["verdict"]
+
+    # Step 4 — aggregate verdict.
+    both_pass = cite_verdict == "pass" and contra_verdict == "pass"
+    synthesis_status = "complete" if both_pass else "running"
+
+    # Step 5 — phase-state mutation.
+    if synthesis_status == "complete":
+        synthesis_path = paths.synthesis
+        if not synthesis_path.exists():
+            raise ScriptoriumError(
+                f"cannot mark synthesis complete: artifact missing at "
+                f"{synthesis_path}",
+                symbol="E_REVIEWER_ARTIFACT_MISSING",
+            )
+        sig = verifier_signature_for(synthesis_path)
+        state = set_phase(
+            paths,
+            "synthesis",
+            "complete",
+            artifact_path=str(synthesis_path),
+            verifier_signature=sig,
+        )
+    else:
+        state = set_phase(paths, "synthesis", "running")
+
+    # Step 6 — gate audit row.
+    gate_status = "success" if synthesis_status == "complete" else "warning"
+    append_audit(
+        paths,
+        AuditEntry(
+            phase="synthesis",
+            action="synthesis.gate",
+            status=gate_status,
+            details={
+                "cite_verdict": cite_verdict,
+                "contradiction_verdict": contra_verdict,
+                "result": synthesis_status,
+            },
+        ),
+    )
+
+    return {
+        "synthesis_status": synthesis_status,
+        "phase_state": state,
+        "cite_verdict": cite_verdict,
+        "contradiction_verdict": contra_verdict,
+    }

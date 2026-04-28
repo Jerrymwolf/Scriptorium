@@ -52,6 +52,26 @@ All citations use the token `[paper_id:locator]`. The locator format is defined 
 - Do NOT use numbered citations (`[1]`, `[2]`). They are Consensus's grammar and are stripped at search time; only `[paper_id:locator]` is durable.
 - Do NOT write a transition that smuggles an empirical claim into uncited prose. Transitions are allowed to be uncited only when they make no claim of their own.
 
+## Synthesis exit — reviewer gate (Claude Code)
+
+After the in-skill cite-check passes, run the v0.4 reviewer gate. This is the final guard that promotes `phases.synthesis` from `running` to `complete`.
+
+1. **Dispatch the cite reviewer** at `agents/lit-cite-reviewer.md` (agent name `lit-cite-reviewer`). It walks every `[paper_id:locator]` token in `synthesis.md` against `evidence.jsonl` and emits a §6.3 reviewer-output JSON payload.
+2. **Dispatch the contradiction reviewer** at `agents/lit-contradiction-reviewer.md` (agent name `lit-contradiction-reviewer`). It cross-checks `synthesis.md` against `contradictions.md` (and the `contradiction-check / pairs.found` audit rows) and emits a §6.3 payload.
+3. **Aggregate** by calling `scriptorium.reviewers.finalize_synthesis_phase(paths, cite_result=..., contradiction_result=...)`. This function:
+   - Validates both payloads (raises `E_REVIEWER_INVALID` on a malformed shape).
+   - Appends one audit row per reviewer (`reviewer.cite`, `reviewer.contradiction`).
+   - Promotes `phases.synthesis` to `complete` **only when both reviewers' verdict is `pass`** AND `synthesis.md` exists. Any other combination — `fail`, `skipped`, or even `pass+pass` with `synthesis.md` missing — leaves the phase at `running` (recoverable) or raises `E_REVIEWER_ARTIFACT_MISSING`.
+   - Appends one summary `synthesis.gate` audit row recording the aggregate result.
+
+**Aggregation rule pinned**: both reviewers must verdict `pass` for `complete`. One `fail` or one `skipped` keeps the phase at `running`; the user re-drafts and re-reviews. Reviewer-fail is not terminal — `failed` is reserved for hard infrastructure failures.
+
+**Audit row trio per gate run**: `reviewer.cite`, `reviewer.contradiction`, `synthesis.gate`. If you don't see all three in `audit.jsonl` after a finalize call, the gate did not run to completion — investigate before declaring synthesis done.
+
+If `synthesis.md` is later edited, the next `phase_state.read()` auto-downgrades `phases.synthesis` from `complete` back to `running` (the artifact's hash no longer matches the recorded `verifier_signature`). That's intentional v0.4 architecture; re-run the reviewer gate to re-promote.
+
+⚠ **Cowork: deferred to T15.** This reviewer-gate path is Claude Code only — Cowork has no `Task` tool to dispatch sub-agents and no filesystem to host the agent prompts. T15 will wire the Cowork branch (likely as MCP-tool reviewer payloads emitted by the model directly). Until T15 lands, Cowork synthesis exits via the in-skill cite-check above and DOES NOT call `finalize_synthesis_phase`.
+
 ## Hand-off
 
 After the cite-check passes, report: "Synthesis written; N sentences, M citations, 0 unsupported." Hand off to `lit-contradiction-check` (if not already run) or to the user for review.
