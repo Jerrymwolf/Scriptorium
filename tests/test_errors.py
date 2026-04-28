@@ -29,6 +29,10 @@ EXPECTED = {
     # v0.4 Layer B — reviewer output validation (T04)
     "E_REVIEWER_INVALID": 22,
     "E_NOT_IMPLEMENTED": 23,
+    # v0.4 Layer B — extraction orchestration (T12)
+    "E_EXTRACT_BAD_CAP": 24,
+    "E_EXTRACT_NO_DISPATCHER": 25,
+    "E_EXTRACT_UNKNOWN_RUNTIME": 26,
     "E_INTERRUPTED": 130,
 }
 

@@ -55,6 +55,12 @@ scriptorium audit append --phase extraction --action fulltext.resolved \
   --details '{"paper_id":"W123","source":"unpaywall","n_pages":12}'
 ```
 
+## Orchestration — CC parallel fan-out
+
+The per-paper bash block above is the inner loop. The Claude Code runtime fans those papers out under a parallel cap by calling `scriptorium.extract.run_extraction(paths, review_id=..., paper_ids=[...], runtime="claude_code", parallel_cap=<cap>, agent_dispatcher=<callable>)`. Each paper gets its own subagent — a single-id prompt with no sibling-paper context — so per-paper extractions stay isolated. The cap is read from the `extraction_parallel_cap` config key (default `4`); set it via `scriptorium config set extraction_parallel_cap <N>` or in `<review_root>/config.toml`.
+
+For each paper the orchestrator dispatches, exactly one `extraction.dispatch` audit row is appended (`status="success"` on a clean dispatcher return, `status="failure"` with `error` populated when the dispatcher raises). The `details` payload always names `paper_id`, `review_id`, and `runtime="claude_code"`. A failure on one paper does NOT abort the batch — the orchestrator collects all outcomes into `{"successes": ..., "failures": ...}` so the caller can decide whether the run was acceptable. The per-paper inner loop above (`scriptorium fetch-fulltext` / `scriptorium extract-pdf` / `scriptorium evidence add`) runs inside each subagent's isolated context.
+
 ## Workflow — Cowork path
 
 ⚠ no Unpaywall / no arXiv: Cowork has no platform CLI for these sources. The cascade collapses to **user_pdf → pmc (via PubMed MCP) → abstract_only**. What is lost: legal-OA discovery via Unpaywall and preprint full text via arXiv. Coverage drops sharply for any paper that is not user-uploaded and not on PMC; expect a higher proportion of `abstract_only` terminal states.
