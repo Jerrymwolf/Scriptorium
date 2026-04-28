@@ -213,19 +213,56 @@ def phase_override(
     phase: str,
     reason: str,
     actor: str,
+    confirm: bool = False,
 ) -> dict[str, Any]:
     """Mark a phase as overridden with a justification record.
 
     actor: name of the caller (Cowork must supply this explicitly).
+    confirm: must be ``True`` (the explicit Cowork override marker —
+        T16). Truthy non-bool values ("yes", 1) are NOT accepted; the
+        check is ``confirm is True`` so a coerced string from the wire
+        protocol cannot silently authorise the mutation. Returns
+        ``{"error": ..., "code": E_USAGE}`` when omitted or not True.
     """
     from scriptorium.errors import EXIT_CODES, ScriptoriumError
     from scriptorium import phase_state as ps
+    from scriptorium.storage.audit import AuditEntry, append_audit
+
+    # T16: explicit-marker requirement. The MCP surface has no TTY to
+    # gate on, so an out-of-band marker stands in for operator intent.
+    if confirm is not True:
+        return {
+            "error": (
+                "phase_override requires confirm=True (explicit Cowork "
+                "override marker)"
+            ),
+            "code": EXIT_CODES["E_USAGE"],
+        }
 
     paths = _paths(review_dir, create=True)
     try:
-        return ps.override_phase(paths, phase, reason=reason, actor=actor)
+        state = ps.override_phase(paths, phase, reason=reason, actor=actor)
     except ScriptoriumError as e:
         return {"error": str(e), "code": EXIT_CODES[e.symbol]}
+
+    # T16: audit-row append. ts comes from the phase-state entry so the
+    # audit row and phase-state agree on the same timestamp.
+    append_audit(
+        paths,
+        AuditEntry(
+            phase=phase,
+            action="phase.override",
+            status="success",
+            details={
+                "phase": phase,
+                "reason": reason,
+                "actor": actor,
+                "ts": state["phases"][phase]["override"]["ts"],
+                "runtime": "cowork",
+            },
+        ),
+    )
+    return state
 
 
 # ---------------------------------------------------------------------------

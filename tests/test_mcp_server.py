@@ -130,11 +130,13 @@ def test_mcp_phase_set_complete_no_signature_returns_error(review_dir):
 
 
 def test_mcp_phase_override(review_dir):
+    # T16: confirm=True is the explicit-marker requirement.
     result = mcp_server.phase_override(
         review_dir=str(review_dir),
         phase="synthesis",
         reason="Emergency skip",
         actor="cowork",
+        confirm=True,
     )
     assert result["phases"]["synthesis"]["status"] == "overridden"
     assert result["phases"]["synthesis"]["override"]["actor"] == "cowork"

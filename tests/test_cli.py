@@ -220,8 +220,10 @@ def test_phase_set_unknown_phase(review_dir):
 # --- phase override ---
 
 def test_phase_override_sets_overridden(review_dir):
+    # T16: --yes is required when stdin is not a TTY.
     rc, out, err = run(
-        ["phase", "override", "synthesis", "--reason", "Emergency override"],
+        ["phase", "override", "synthesis",
+         "--reason", "Emergency override", "--yes"],
         review_dir,
     )
     assert rc == 0, err
@@ -234,7 +236,7 @@ def test_phase_override_actor_from_flag(review_dir):
     rc, out, err = run(
         ["phase", "override", "extraction",
          "--reason", "Skip step",
-         "--actor", "test-user"],
+         "--actor", "test-user", "--yes"],
         review_dir,
     )
     assert rc == 0, err
@@ -243,7 +245,7 @@ def test_phase_override_actor_from_flag(review_dir):
 
 
 def test_phase_override_requires_reason(review_dir):
-    rc, out, err = run(["phase", "override", "synthesis"], review_dir)
+    rc, out, err = run(["phase", "override", "synthesis", "--yes"], review_dir)
     # argparse will return usage error (exit 2) for missing --reason
     assert rc != 0
 
@@ -320,7 +322,7 @@ def test_verify_gate_publish_passes_when_synthesis_complete(review_dir):
 
 def test_verify_gate_publish_passes_when_synthesis_overridden(review_dir):
     rc, _, err = run(
-        ["phase", "override", "synthesis", "--reason", "skip"],
+        ["phase", "override", "synthesis", "--reason", "skip", "--yes"],
         review_dir,
     )
     assert rc == 0, err

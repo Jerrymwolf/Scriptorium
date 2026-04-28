@@ -24,9 +24,22 @@ If either field is `pending`, `running`, or `failed`, refuse and name the specif
 
 If `enforce_v04=false` (advisory mode), warn the user that publishing is normally gated, append an `audit.jsonl` row with `mode=advisory` naming the failing phase, and proceed only after explicit user acknowledgement. Silent bypass is forbidden in either mode — advisory means *warn loudly and require acknowledgement*, not *suppress the warning*.
 
-## Phase 5 forward-reference — reviewer state
+## Phase 5 reviewer gate — current state
 
-Once Phase 5 lands, `lit-publishing` also gates on reviewer state — `phase-state.json::phases.synthesis.verifier_signature` must reflect a passing cite-reviewer + contradiction-reviewer verdict. This forward-reference is intentional: today the gate is content-bytes only (status=complete with a sha256 signature of the artifact); after Phase 5, the same signature field carries a stricter verdict. When Phase 5 lands, update this section so the reviewer dependency is no longer forward-looking.
+Phase 5 (T14/T15) has landed. `phase-state.json::phases.synthesis.status` is now promoted to `"complete"` only when both reviewer agents (`lit-cite-reviewer` and `lit-contradiction-reviewer`) return verdict `"pass"` AND `synthesis.md` exists; the cite-check, contradiction-check, and aggregation rows all land in `audit.jsonl`. A failing reviewer leaves the status at `"running"` (recoverable — re-run after fixing) or `"failed"` (terminal — caller decides whether to retry or override). The `verifier_signature` field is the sha256 of the synthesis bytes the reviewers just signed off on, so any post-pass mutation auto-downgrades the phase back to `"running"` on the next read.
+
+When the reviewer gate misfires (false negatives, runaway model output, gate not implemented for a given runtime), the audited override path takes status to `"overridden"`: `scriptorium phase override synthesis --reason "..."` in Claude Code (TTY-guarded — `--yes` for non-interactive use), or `phase_override(review_dir, "synthesis", reason, actor, confirm=True)` via the Cowork MCP tool (explicit `confirm=True` marker). Both runtimes write a `phase.override` row to `audit.jsonl` carrying `phase`, `reason`, `actor`, `ts`, and `runtime`; the publish gate accepts `"overridden"` as equivalent to `"complete"` so publish proceeds.
+
+## Audited override
+
+When the reviewer gate misfires, an audited override unblocks publish without rewriting the reviewer history. The override sets `phase-state.json::phases.synthesis.status = "overridden"` (and likewise for `phases.contradiction` if that gate is the one stuck), records `{reason, actor, ts}` under `phase-state.json::phases.<phase>.override`, AND appends a `phase.override` row to `audit.jsonl` carrying the same fields plus `runtime`.
+
+The override is irreversible in the audit sense: a second override of the same phase appends a SECOND `phase.override` row — the first is never rewritten or removed. Two literal forms exist, one per runtime:
+
+- **Claude Code (TTY-guarded):** `scriptorium phase override <phase> --reason "..."` reads `stdin.isatty()`. On a real TTY the command prompts `Proceed with audited override of <phase>? [y/N]` and proceeds only on `y`/`yes`. Pass `--yes` to skip the prompt for non-interactive scripted use; without `--yes`, a non-TTY stdin is refused with `E_USAGE` and no phase-state mutation.
+- **Cowork (explicit-marker):** `phase_override(review_dir, phase, reason, actor, confirm=True)` exposed by the Scriptorium MCP server. The `confirm=True` argument is the Cowork-side stand-in for the CC TTY confirmation; the check is `confirm is True`, so a truthy non-bool ("yes", `1`) does NOT pass. Without it the tool returns `{"error": ..., "code": E_USAGE}` and does not mutate phase-state.
+
+The publish gate (`scriptorium publish`) treats `"overridden"` identically to `"complete"` — both unblock publish. Under `enforce_v04=true` an incomplete-and-not-overridden gate returns `E_REVIEW_INCOMPLETE` (4); under `enforce_v04=false` (advisory mode, the v0.4.0 default) the same condition writes a warning to stderr, appends a `publish.advisory` audit row, and proceeds. The blocking branch appends a `publish.blocked` audit row instead.
 
 ## Hand-off to `publishing-to-notebooklm`
 

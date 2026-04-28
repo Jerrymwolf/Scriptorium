@@ -464,6 +464,36 @@ def cmd_phase_override(args, paths, stdout, stderr, stdin) -> int:
     from scriptorium.errors import EXIT_CODES, ScriptoriumError
     from scriptorium import phase_state
     actor = getattr(args, "actor", None) or os.environ.get("USER") or "cli"
+
+    # T16: TTY guard — the CLI is the Claude Code authority surface; an
+    # override mutates phase-state irreversibly, so we require explicit
+    # operator intent. `--yes` is the non-interactive bypass; on a real
+    # TTY we ask for confirmation; otherwise refuse with E_USAGE.
+    if not getattr(args, "yes", False):
+        try:
+            is_tty = stdin.isatty()
+        except (AttributeError, ValueError):
+            is_tty = False
+        if is_tty:
+            stdout.write(
+                f"Proceed with audited override of {args.phase}? [y/N] "
+            )
+            stdout.flush()
+            try:
+                resp = stdin.readline()
+            except (EOFError, OSError):
+                resp = ""
+            if resp.strip().lower() not in ("y", "yes"):
+                stdout.write("aborted\n")
+                return 0
+        else:
+            stderr.write(
+                "scriptorium phase override: --yes required when stdin "
+                "is not a TTY (refuse to mutate phase-state without "
+                "explicit operator intent)\n"
+            )
+            return EXIT_CODES["E_USAGE"]
+
     try:
         state = phase_state.override_phase(
             paths,
@@ -474,6 +504,27 @@ def cmd_phase_override(args, paths, stdout, stderr, stdin) -> int:
     except ScriptoriumError as e:
         stderr.write(json.dumps({"error": str(e), "code": EXIT_CODES[e.symbol]}) + "\n")
         return EXIT_CODES[e.symbol]
+
+    # T16: audit-row append. The ts MUST come from the phase-state entry
+    # so the audit row and phase-state agree on the same timestamp; the
+    # write is append-only (audit.jsonl) so two overrides of the same
+    # phase produce two rows.
+    append_audit(
+        paths,
+        AuditEntry(
+            phase=args.phase,
+            action="phase.override",
+            status="success",
+            details={
+                "phase": args.phase,
+                "reason": args.reason,
+                "actor": actor,
+                "ts": state["phases"][args.phase]["override"]["ts"],
+                "runtime": "claude_code",
+            },
+        ),
+    )
+
     stdout.write(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
     return 0
 
@@ -616,6 +667,81 @@ def cmd_publish(args, paths, stdout, stderr, stdin) -> int:
             notebook_name=pa.notebook, review_dir=pa.review_dir, sources=pa.sources,
         ))
         return 0
+
+    # T16: publish gate. Synthesis AND contradiction must be `complete`
+    # or `overridden` for publish to proceed. Under `enforce_v04=True`
+    # an incomplete gate blocks (E_REVIEW_INCOMPLETE); under the
+    # default advisory mode we warn on stderr, append an advisory audit
+    # row, and continue. Cowork-mode short-circuits BEFORE the gate.
+    from scriptorium import phase_state as _phase_state
+    _ALLOWED_GATE = ("complete", "overridden")
+    try:
+        _gate_state = _phase_state.read(paths)
+    except ReviewLockHeld as e:
+        # phase_state.read may take the lock when the artifact is
+        # missing (init() path). Surface the same E_LOCKED contract the
+        # publish flow uses for any held lock — gate-time held lock is
+        # functionally identical to publish-time held lock.
+        stderr.write(f"scriptorium publish: {e}\n")
+        return EXIT_CODES["E_LOCKED"]
+    _synth_status = _gate_state["phases"].get("synthesis", {}).get(
+        "status", "pending"
+    )
+    _contra_status = _gate_state["phases"].get("contradiction", {}).get(
+        "status", "pending"
+    )
+    if _synth_status not in _ALLOWED_GATE or _contra_status not in _ALLOWED_GATE:
+        _cfg = load_config(_config_path(paths))
+        if _cfg.enforce_v04:
+            # Blocking branch — name the offending phase first.
+            _failing = (
+                "synthesis" if _synth_status not in _ALLOWED_GATE
+                else "contradiction"
+            )
+            _failing_status = (
+                _synth_status if _failing == "synthesis"
+                else _contra_status
+            )
+            stderr.write(
+                json.dumps({
+                    "error": (
+                        f"publish blocked: {_failing} not "
+                        f"complete/overridden (status={_failing_status!r})"
+                    ),
+                    "code": EXIT_CODES["E_REVIEW_INCOMPLETE"],
+                    "synthesis_status": _synth_status,
+                    "contradiction_status": _contra_status,
+                }) + "\n"
+            )
+            append_audit(paths, AuditEntry(
+                phase="publishing",
+                action="publish.blocked",
+                status="failure",
+                details={
+                    "synthesis_status": _synth_status,
+                    "contradiction_status": _contra_status,
+                    "mode": "blocking",
+                },
+            ))
+            return EXIT_CODES["E_REVIEW_INCOMPLETE"]
+        else:
+            # Advisory branch — warn to stderr, append advisory row,
+            # continue with the existing publish flow. Stdout payload
+            # stays untouched (test_publish_flow.py parses it as JSON).
+            stderr.write(
+                "scriptorium publish: WARNING: synthesis/contradiction "
+                "not complete (advisory mode); proceeding...\n"
+            )
+            append_audit(paths, AuditEntry(
+                phase="publishing",
+                action="publish.advisory",
+                status="warning",
+                details={
+                    "synthesis_status": _synth_status,
+                    "contradiction_status": _contra_status,
+                    "mode": "advisory",
+                },
+            ))
 
     from scriptorium.publish import has_prior_publish
     if not pa.yes and has_prior_publish(paths.audit_md, pa.notebook):
@@ -889,6 +1015,9 @@ def _build_parser() -> argparse.ArgumentParser:
     pph_ov.add_argument("--reason", required=True, help="Human-readable justification")
     pph_ov.add_argument("--actor", default=None,
                         help="Who is overriding (defaults to $USER or 'cli')")
+    pph_ov.add_argument("--yes", action="store_true",
+                        help="Skip the interactive TTY confirmation; required "
+                             "when stdin is not a TTY (T16)")
 
     # v0.4 reviewer validation
     prv = sub.add_parser("reviewer-validate", help="Validate a reviewer output JSON file")

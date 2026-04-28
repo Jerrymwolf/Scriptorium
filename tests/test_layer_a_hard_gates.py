@@ -266,25 +266,32 @@ def test_per_phase_advisory_requires_acknowledgement(skill: str):
 
 def test_lit_publishing_phase5_forward_reference():
     text = _skill_text("lit-publishing")
-    # Phase 5 is the upcoming reviewer phase. The brief requires this
-    # SKILL.md to forward-reference it so when Phase 5 lands, the gate
-    # extends to verifier_signature without surprising the reader.
+    # Phase 5 (T14/T15/T16) has landed in v0.4. The skill must still name
+    # `Phase 5` and the reviewer role so the genealogy is legible to any
+    # reader stepping through the plan, and must signal the gate's
+    # current strictness level (no longer forward-looking).
     assert "Phase 5" in text, (
-        "lit-publishing must mention `Phase 5` in a forward-reference"
+        "lit-publishing must mention `Phase 5` so the reviewer-gate "
+        "genealogy is legible"
     )
     assert "reviewer" in text.lower(), (
-        "lit-publishing forward-reference must name the reviewer role"
+        "lit-publishing must name the reviewer role"
     )
-    # Some signal that the gate gets stricter when Phase 5 lands.
+    # Some signal that the gate's reviewer dependency is real (post-T16
+    # this is current state, not a forward-reference; T16's SKILL update
+    # replaced the forward-looking framing with current-state prose).
     text_lower = text.lower()
     has_signal = (
         "once phase 5 lands" in text_lower
         or "forward-reference" in text_lower
         or "when phase 5" in text_lower
+        or "phase 5 (t14/t15) has landed" in text_lower
+        or "phase 5 reviewer gate" in text_lower
     )
     assert has_signal, (
-        "lit-publishing must signal that the gate STRICTENS when Phase 5 "
-        "lands (e.g. 'once Phase 5 lands' or 'forward-reference')"
+        "lit-publishing must reference the reviewer-gate's strictness "
+        "signal — either the original forward-looking phrasing OR the "
+        "T16 current-state phrasing ('Phase 5 reviewer gate', 'has landed')"
     )
 
 
