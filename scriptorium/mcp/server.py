@@ -273,6 +273,9 @@ def extract_paper(
     # here — extract_paper is a write-side tool.
     paths = _paths(review_dir, create=True)
 
+    # Precondition rejects below return without appending an audit row —
+    # this is a precondition failure (paper not in corpus / not kept), NOT
+    # a dispatch attempt. Audit rows are reserved for actual dispatches.
     rows = load_corpus(paths)
     matches = [r for r in rows if r.get("paper_id") == paper_id]
     if not matches:
