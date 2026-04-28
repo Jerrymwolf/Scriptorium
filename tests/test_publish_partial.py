@@ -7,20 +7,9 @@ from scriptorium.errors import EXIT_CODES
 from scriptorium.nlm import NlmCommandError, NlmTimeoutError, NlmResult, NotebookCreated
 
 
-def _review(tmp_path: Path) -> Path:
-    root = tmp_path / "reviews" / "caffeine-wm"
-    root.mkdir(parents=True)
-    for name in ("overview.md", "synthesis.md", "contradictions.md"):
-        (root / name).write_text("x" * 10, encoding="utf-8")
-    (root / "data").mkdir(parents=True)
-    (root / "data" / "evidence.jsonl").write_text("x" * 10, encoding="utf-8")
-    (root / "sources" / "pdfs").mkdir(parents=True)
-    return root
-
-
 @patch("scriptorium.publish.nlm")
-def test_upload_failure_exits_e_upload_with_partial_audit(mock_nlm, tmp_path):
-    root = _review(tmp_path)
+def test_upload_failure_exits_e_upload_with_partial_audit(mock_nlm, publish_review_dir):
+    root = publish_review_dir
     mock_nlm.doctor.return_value = NlmResult("", "", 0)
     mock_nlm.create_notebook.return_value = NotebookCreated(notebook_id="n1", notebook_url="https://x/n1", stdout="id: n1\nurl: https://x/n1")
     def _side(nid, path):
@@ -39,8 +28,8 @@ def test_upload_failure_exits_e_upload_with_partial_audit(mock_nlm, tmp_path):
 
 
 @patch("scriptorium.publish.nlm")
-def test_timeout_exits_e_timeout(mock_nlm, tmp_path):
-    root = _review(tmp_path)
+def test_timeout_exits_e_timeout(mock_nlm, publish_review_dir):
+    root = publish_review_dir
     mock_nlm.doctor.return_value = NlmResult("", "", 0)
     mock_nlm.create_notebook.side_effect = NlmTimeoutError("timeout")
     out = io.StringIO(); err = io.StringIO()

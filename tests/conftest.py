@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Callable, Iterable
 import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -89,3 +90,72 @@ def load_fixture(category: str, name: str) -> dict:
 def fixture_loader():
     """Fixture providing the load_fixture function."""
     return load_fixture
+
+
+def _build_publish_review(
+    tmp_path: Path,
+    *,
+    slug: str = "caffeine-wm",
+    pdfs: Iterable[str] = (),
+    seed_audit_md: str | None = None,
+    content: str = "x",
+) -> Path:
+    """Build a publish-ready review directory.
+
+    Layout (matches `tests/test_publish_flow.py` canonical shape):
+
+        <tmp>/reviews/<slug>/
+            overview.md
+            synthesis.md
+            contradictions.md
+            data/evidence.jsonl
+            sources/pdfs/<each pdf in pdfs>
+            audit/audit.md      (only if seed_audit_md is not None)
+
+    Notes:
+        * ``content`` is written verbatim to each prose file and to
+          ``data/evidence.jsonl``. The publish flow only checks ``exists()``
+          for those files, so any non-empty bytes pass the gate.
+        * ``pdfs`` is an iterable of filenames; each is created as a
+          single-byte placeholder under ``sources/pdfs/``. The directory
+          exists even when the iterable is empty.
+        * ``seed_audit_md`` is the verbatim text written to
+          ``audit/audit.md`` for tests that need a prior-publish history
+          (e.g. idempotency prompt). When ``None``, audit.md is not
+          created.
+    """
+    root = tmp_path / "reviews" / slug
+    root.mkdir(parents=True)
+    for name in ("overview.md", "synthesis.md", "contradictions.md"):
+        (root / name).write_text(content, encoding="utf-8")
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "evidence.jsonl").write_text(content, encoding="utf-8")
+    pdf_dir = root / "sources" / "pdfs"
+    pdf_dir.mkdir(parents=True)
+    for pdf_name in pdfs:
+        (pdf_dir / pdf_name).write_bytes(b"a")
+    if seed_audit_md is not None:
+        audit_dir = root / "audit"
+        audit_dir.mkdir(parents=True)
+        (audit_dir / "audit.md").write_text(seed_audit_md, encoding="utf-8")
+    return root
+
+
+@pytest.fixture
+def publish_review_factory(tmp_path: Path) -> Callable[..., Path]:
+    """Return a callable that builds a publish-ready review under ``tmp_path``.
+
+    Replaces the seven near-duplicate ``_make_review`` / ``_review`` /
+    ``_make_publish_review`` helpers across ``tests/test_publish_*.py`` and
+    ``tests/test_layer_b_override.py``. Callers pass keyword arguments to
+    select variants (``pdfs=("alpha.pdf",)``, ``seed_audit_md=...``).
+    """
+    def _factory(**kwargs) -> Path:
+        return _build_publish_review(tmp_path, **kwargs)
+    return _factory
+
+
+@pytest.fixture
+def publish_review_dir(publish_review_factory: Callable[..., Path]) -> Path:
+    """Default publish-ready review (no PDFs, no seeded audit.md)."""
+    return publish_review_factory()

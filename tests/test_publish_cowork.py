@@ -1,24 +1,12 @@
 """§9.6: publish in Cowork mode emits the block, exits 0, does not call nlm."""
 import io
-from pathlib import Path
 from unittest.mock import patch
 
 from scriptorium.cli import main
 
 
-def _make_review(tmp_path: Path) -> Path:
-    root = tmp_path / "reviews" / "caffeine-wm"
-    root.mkdir(parents=True)
-    for name in ("overview.md", "synthesis.md", "contradictions.md"):
-        (root / name).write_text("x", encoding="utf-8")
-    (root / "data").mkdir(parents=True)
-    (root / "data" / "evidence.jsonl").write_text("x", encoding="utf-8")
-    (root / "sources" / "pdfs").mkdir(parents=True)
-    return root
-
-
-def test_cowork_mode_emits_block_and_skips_nlm(tmp_path, monkeypatch):
-    root = _make_review(tmp_path)
+def test_cowork_mode_emits_block_and_skips_nlm(publish_review_dir, monkeypatch):
+    root = publish_review_dir
     monkeypatch.setenv("SCRIPTORIUM_FORCE_COWORK", "1")
     out = io.StringIO(); err = io.StringIO()
     with patch("scriptorium.nlm.doctor") as mock_doctor:
@@ -28,8 +16,8 @@ def test_cowork_mode_emits_block_and_skips_nlm(tmp_path, monkeypatch):
     mock_doctor.assert_not_called()
 
 
-def test_cowork_block_lists_relative_files(tmp_path, monkeypatch):
-    root = _make_review(tmp_path)
+def test_cowork_block_lists_relative_files(publish_review_dir, monkeypatch):
+    root = publish_review_dir
     monkeypatch.setenv("SCRIPTORIUM_FORCE_COWORK", "1")
     out = io.StringIO(); err = io.StringIO()
     rc = main(["publish", "--review-dir", str(root)], stdout=out, stderr=err)

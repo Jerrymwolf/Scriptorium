@@ -11,23 +11,9 @@ from scriptorium.errors import EXIT_CODES
 from scriptorium.nlm import NotebookCreated, NlmResult
 
 
-def _make_review(tmp_path: Path) -> Path:
-    root = tmp_path / "reviews" / "caffeine-wm"
-    root.mkdir(parents=True)
-    for name in ("overview.md", "synthesis.md", "contradictions.md"):
-        (root / name).write_text("x", encoding="utf-8")
-    (root / "data").mkdir(parents=True)
-    (root / "data" / "evidence.jsonl").write_text("x", encoding="utf-8")
-    pdfs = root / "sources" / "pdfs"
-    pdfs.mkdir(parents=True)
-    (pdfs / "alpha.pdf").write_bytes(b"a")
-    (pdfs / "beta.pdf").write_bytes(b"b")
-    return root
-
-
 @patch("scriptorium.publish.nlm")
-def test_upload_order_and_artifact(mock_nlm, tmp_path, monkeypatch):
-    root = _make_review(tmp_path)
+def test_upload_order_and_artifact(mock_nlm, publish_review_factory, monkeypatch):
+    root = publish_review_factory(pdfs=("alpha.pdf", "beta.pdf"))
     monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
     monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
     mock_nlm.doctor.return_value = NlmResult(stdout="ok", stderr="", returncode=0)
@@ -60,8 +46,8 @@ def test_upload_order_and_artifact(mock_nlm, tmp_path, monkeypatch):
 
 
 @patch("scriptorium.publish.nlm")
-def test_nlm_doctor_failure_returns_unavailable(mock_nlm, tmp_path, monkeypatch):
-    root = _make_review(tmp_path)
+def test_nlm_doctor_failure_returns_unavailable(mock_nlm, publish_review_factory, monkeypatch):
+    root = publish_review_factory(pdfs=("alpha.pdf", "beta.pdf"))
     from scriptorium.nlm import NlmUnavailableError
     mock_nlm.doctor.side_effect = NlmUnavailableError("not authed")
     out = io.StringIO(); err = io.StringIO()
@@ -71,8 +57,8 @@ def test_nlm_doctor_failure_returns_unavailable(mock_nlm, tmp_path, monkeypatch)
 
 
 @patch("scriptorium.publish.nlm")
-def test_lock_held_returns_e_locked(mock_nlm, tmp_path, monkeypatch):
-    root = _make_review(tmp_path)
+def test_lock_held_returns_e_locked(mock_nlm, publish_review_factory, monkeypatch):
+    root = publish_review_factory(pdfs=("alpha.pdf", "beta.pdf"))
     (root / ".scriptorium").mkdir(parents=True, exist_ok=True)
     (root / ".scriptorium" / "lock").write_text("1\n", encoding="utf-8")
     out = io.StringIO(); err = io.StringIO()

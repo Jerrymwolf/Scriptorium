@@ -89,24 +89,6 @@ def _write_enforce_v04(review_dir: Path, *, value: bool) -> None:
     )
 
 
-def _make_publish_review(tmp_path: Path) -> Path:
-    """Build a review dir with the four required prose deliverables.
-
-    Mirrors ``tests/test_publish_flow.py::_make_review`` so the publish
-    flow has something legitimate to operate on once the gate passes.
-    """
-    root = tmp_path / "reviews" / "caffeine-wm"
-    root.mkdir(parents=True)
-    for name in ("overview.md", "synthesis.md", "contradictions.md"):
-        (root / name).write_text("x", encoding="utf-8")
-    (root / "data").mkdir(parents=True)
-    (root / "data" / "evidence.jsonl").write_text("x", encoding="utf-8")
-    pdfs = root / "sources" / "pdfs"
-    pdfs.mkdir(parents=True)
-    (pdfs / "alpha.pdf").write_bytes(b"a")
-    return root
-
-
 def _set_synthesis_complete(paths) -> None:
     sig = "sha256:" + "a" * 64
     phase_state.set_phase(paths, "synthesis", "complete", verifier_signature=sig)
@@ -376,11 +358,11 @@ class TestGroupC_AuditImmutability:
 class TestGroupD_PublishBlockingEnforced:
     @patch("scriptorium.publish.nlm")
     def test_synthesis_pending_contradiction_complete_blocks(
-        self, mock_nlm, tmp_path, monkeypatch,
+        self, mock_nlm, publish_review_factory, monkeypatch,
     ):
         monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
         monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         _write_enforce_v04(root, value=True)
         paths = resolve_review_dir(explicit=root)
         _set_contradiction_complete(paths)
@@ -396,11 +378,11 @@ class TestGroupD_PublishBlockingEnforced:
 
     @patch("scriptorium.publish.nlm")
     def test_synthesis_complete_contradiction_running_blocks(
-        self, mock_nlm, tmp_path, monkeypatch,
+        self, mock_nlm, publish_review_factory, monkeypatch,
     ):
         monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
         monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         _write_enforce_v04(root, value=True)
         paths = resolve_review_dir(explicit=root)
         _set_synthesis_complete(paths)
@@ -410,10 +392,10 @@ class TestGroupD_PublishBlockingEnforced:
         mock_nlm.doctor.assert_not_called()
 
     @patch("scriptorium.publish.nlm")
-    def test_both_complete_proceeds(self, mock_nlm, tmp_path, monkeypatch):
+    def test_both_complete_proceeds(self, mock_nlm, publish_review_factory, monkeypatch):
         monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
         monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         _write_enforce_v04(root, value=True)
         paths = resolve_review_dir(explicit=root)
         _set_synthesis_complete(paths)
@@ -437,11 +419,11 @@ class TestGroupD_PublishBlockingEnforced:
 
     @patch("scriptorium.publish.nlm")
     def test_synthesis_overridden_unblocks(
-        self, mock_nlm, tmp_path, monkeypatch,
+        self, mock_nlm, publish_review_factory, monkeypatch,
     ):
         monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
         monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         _write_enforce_v04(root, value=True)
         paths = resolve_review_dir(explicit=root)
         phase_state.override_phase(
@@ -462,10 +444,10 @@ class TestGroupD_PublishBlockingEnforced:
         mock_nlm.doctor.assert_called_once()
 
     @patch("scriptorium.publish.nlm")
-    def test_both_overridden_unblocks(self, mock_nlm, tmp_path, monkeypatch):
+    def test_both_overridden_unblocks(self, mock_nlm, publish_review_factory, monkeypatch):
         monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
         monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         _write_enforce_v04(root, value=True)
         paths = resolve_review_dir(explicit=root)
         phase_state.override_phase(
@@ -488,11 +470,11 @@ class TestGroupD_PublishBlockingEnforced:
 
     @patch("scriptorium.publish.nlm")
     def test_blocked_path_appends_publish_blocked_audit_row(
-        self, mock_nlm, tmp_path, monkeypatch,
+        self, mock_nlm, publish_review_factory, monkeypatch,
     ):
         monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
         monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         _write_enforce_v04(root, value=True)
         paths = resolve_review_dir(explicit=root)
         # Both phases pending.
@@ -517,11 +499,11 @@ class TestGroupD_PublishBlockingEnforced:
 class TestGroupE_PublishAdvisory:
     @patch("scriptorium.publish.nlm")
     def test_advisory_warns_and_proceeds_on_incomplete(
-        self, mock_nlm, tmp_path, monkeypatch,
+        self, mock_nlm, publish_review_factory, monkeypatch,
     ):
         monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
         monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         _write_enforce_v04(root, value=False)
         # Both phases pending — gate would block under enforce_v04=True.
         mock_nlm.doctor.return_value = NlmResult(
@@ -545,11 +527,11 @@ class TestGroupE_PublishAdvisory:
 
     @patch("scriptorium.publish.nlm")
     def test_advisory_appends_publish_advisory_audit_row(
-        self, mock_nlm, tmp_path, monkeypatch,
+        self, mock_nlm, publish_review_factory, monkeypatch,
     ):
         monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
         monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         _write_enforce_v04(root, value=False)
         mock_nlm.doctor.return_value = NlmResult(
             stdout="ok", stderr="", returncode=0,
@@ -575,13 +557,13 @@ class TestGroupE_PublishAdvisory:
 
     @patch("scriptorium.publish.nlm")
     def test_advisory_skipped_when_both_complete(
-        self, mock_nlm, tmp_path, monkeypatch,
+        self, mock_nlm, publish_review_factory, monkeypatch,
     ):
         """When the gate would pass, the advisory branch must NOT fire —
         no warning, no advisory audit row."""
         monkeypatch.delenv("SCRIPTORIUM_FORCE_COWORK", raising=False)
         monkeypatch.delenv("SCRIPTORIUM_COWORK", raising=False)
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         _write_enforce_v04(root, value=False)
         paths = resolve_review_dir(explicit=root)
         _set_synthesis_complete(paths)
@@ -610,10 +592,10 @@ class TestGroupE_PublishAdvisory:
 
 class TestGroupF_CoworkBypassesGate:
     def test_cowork_short_circuit_runs_before_gate(
-        self, tmp_path, monkeypatch,
+        self, publish_review_factory, monkeypatch,
     ):
         monkeypatch.setenv("SCRIPTORIUM_FORCE_COWORK", "1")
-        root = _make_publish_review(tmp_path)
+        root = publish_review_factory(pdfs=("alpha.pdf",))
         # Even with enforce_v04=True and no phase-state, Cowork short
         # circuits BEFORE the gate runs.
         _write_enforce_v04(root, value=True)

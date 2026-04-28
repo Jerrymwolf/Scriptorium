@@ -1,0 +1,3 @@
+[scriptorium]
+enforce_v04 = true
+extraction_parallel_cap = 4

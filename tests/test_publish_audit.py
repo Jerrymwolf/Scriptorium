@@ -1,25 +1,13 @@
 """§9.7: audit entry under ## Publishing and audit.jsonl publishing row."""
 import io, json
-from pathlib import Path
 from unittest.mock import patch
 from scriptorium.cli import main
 from scriptorium.nlm import NotebookCreated, NlmResult
 
 
-def _review(tmp_path: Path) -> Path:
-    root = tmp_path / "reviews" / "caffeine-wm"
-    root.mkdir(parents=True)
-    for name in ("overview.md", "synthesis.md", "contradictions.md"):
-        (root / name).write_text("x" * 10, encoding="utf-8")
-    (root / "data").mkdir(parents=True)
-    (root / "data" / "evidence.jsonl").write_text("x" * 10, encoding="utf-8")
-    (root / "sources" / "pdfs").mkdir(parents=True)
-    return root
-
-
 @patch("scriptorium.publish.nlm")
-def test_success_writes_audit_markdown_and_jsonl(mock_nlm, tmp_path):
-    root = _review(tmp_path)
+def test_success_writes_audit_markdown_and_jsonl(mock_nlm, publish_review_dir):
+    root = publish_review_dir
     mock_nlm.doctor.return_value = NlmResult("", "", 0)
     mock_nlm.create_notebook.return_value = NotebookCreated(notebook_id="abc123", notebook_url="https://x/abc123", stdout="id: abc123\nurl: https://x/abc123")
     mock_nlm.upload_source.return_value = NlmResult("", "", 0)

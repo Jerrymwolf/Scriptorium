@@ -1,0 +1,54 @@
+{
+  "version": "0.4.0",
+  "phases": {
+    "scoping": {
+      "status": "pending",
+      "artifact_path": null,
+      "verified_at": null,
+      "verifier_signature": null,
+      "override": null
+    },
+    "search": {
+      "status": "pending",
+      "artifact_path": null,
+      "verified_at": null,
+      "verifier_signature": null,
+      "override": null
+    },
+    "screening": {
+      "status": "pending",
+      "artifact_path": null,
+      "verified_at": null,
+      "verifier_signature": null,
+      "override": null
+    },
+    "extraction": {
+      "status": "pending",
+      "artifact_path": null,
+      "verified_at": null,
+      "verifier_signature": null,
+      "override": null
+    },
+    "synthesis": {
+      "status": "pending",
+      "artifact_path": null,
+      "verified_at": null,
+      "verifier_signature": null,
+      "override": null
+    },
+    "contradiction": {
+      "status": "pending",
+      "artifact_path": null,
+      "verified_at": null,
+      "verifier_signature": null,
+      "override": null
+    },
+    "audit": {
+      "status": "pending",
+      "artifact_path": null,
+      "verified_at": null,
+      "verifier_signature": null,
+      "override": null
+    }
+  }
+}

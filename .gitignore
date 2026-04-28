@@ -11,9 +11,11 @@ node_modules/
 pdfs/
 extracts/
 
-# Exception: committed test fixture PDFs
+# Exception: committed test fixture PDFs and review fixtures
 !tests/fixtures/pdfs/
 !tests/fixtures/pdfs/**
+!tests/fixtures/reviews/
+!tests/fixtures/reviews/**
 
 # Python build and packaging
 dist/
@@ -32,3 +34,7 @@ README_proposed.md
 scriptorium-v0.2.1-spec.md
 docs/superpowers/
 config.toml
+
+# Re-include test fixture review configs (must come AFTER config.toml above
+# to win in last-match-wins gitignore evaluation).
+!tests/fixtures/reviews/**/config.toml
