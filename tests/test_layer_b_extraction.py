@@ -27,7 +27,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
@@ -142,6 +142,11 @@ def test_parallel_cap_enforced(review_dir: Path, n_papers: int, cap: int) -> Non
         f"max concurrent dispatcher calls {dispatcher.max_in_flight} "
         f"exceeded parallel_cap {cap}"
     )
+    assert dispatcher.max_in_flight >= 2, (
+        f"with cap={cap} and {n_papers} papers, expected at least 2 concurrent "
+        f"calls; observed {dispatcher.max_in_flight}. Either parallelism is "
+        f"broken or the 50ms hold is too short for this CI box."
+    )
 
 
 def test_parallel_cap_one_runs_sequentially(review_dir: Path) -> None:
@@ -176,6 +181,23 @@ def test_non_positive_parallel_cap_raises(
             runtime="claude_code",
             parallel_cap=bad_cap,
             agent_dispatcher=dispatcher,
+        )
+    assert excinfo.value.symbol == "E_EXTRACT_BAD_CAP"
+
+
+@pytest.mark.parametrize("bad_cap", [True, False])
+def test_bool_parallel_cap_rejected(review_dir: Path, bad_cap: bool) -> None:
+    """`bool` is a subclass of `int` in Python — without explicit rejection,
+    parallel_cap=True silently means cap=1. Pin that bools are rejected."""
+    paths = _make_paths(review_dir)
+    with pytest.raises(ScriptoriumError) as excinfo:
+        run_extraction(
+            paths,
+            review_id="rev",
+            paper_ids=["W1"],
+            runtime="claude_code",
+            parallel_cap=bad_cap,  # type: ignore[arg-type]
+            agent_dispatcher=lambda pid, prompt: {"ok": True},
         )
     assert excinfo.value.symbol == "E_EXTRACT_BAD_CAP"
 
@@ -330,6 +352,22 @@ def test_missing_dispatcher_for_claude_code_raises(review_dir: Path) -> None:
             runtime="claude_code",
             parallel_cap=2,
             agent_dispatcher=None,
+        )
+    assert excinfo.value.symbol == "E_EXTRACT_NO_DISPATCHER"
+
+
+def test_non_callable_dispatcher_for_claude_code_raises(review_dir: Path) -> None:
+    """A non-None but non-callable dispatcher must raise the same symbol as
+    `None`. Pins the second `E_EXTRACT_NO_DISPATCHER` raise path."""
+    paths = _make_paths(review_dir)
+    with pytest.raises(ScriptoriumError) as excinfo:
+        run_extraction(
+            paths,
+            review_id="rev",
+            paper_ids=["W1"],
+            runtime="claude_code",
+            parallel_cap=1,
+            agent_dispatcher="not_a_callable",  # type: ignore[arg-type]
         )
     assert excinfo.value.symbol == "E_EXTRACT_NO_DISPATCHER"
 

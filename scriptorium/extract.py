@@ -173,7 +173,7 @@ def run_extraction(
         NotImplementedError when ``runtime == "cowork"`` (T13 lands the
             Cowork backend dispatch).
     """
-    if not isinstance(parallel_cap, int) or parallel_cap < 1:
+    if isinstance(parallel_cap, bool) or not isinstance(parallel_cap, int) or parallel_cap < 1:
         raise ScriptoriumError(
             f"parallel_cap must be a positive int, got {parallel_cap!r}",
             symbol="E_EXTRACT_BAD_CAP",
