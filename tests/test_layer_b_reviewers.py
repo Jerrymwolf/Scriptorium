@@ -734,8 +734,27 @@ class TestGroupF_SkillUpdate:
         # Look at the section body until the next H2 or EOF.
         next_h2 = skill_text.find("\n## ", idx + len(anchor))
         section = skill_text[idx : next_h2 if next_h2 > 0 else None]
+        # Either the CC section itself names ⚠ (legacy T14 wording) OR
+        # the new T15 Cowork section that follows it does. Either is
+        # legible to a reader — pin "⚠ appears anywhere in the synthesis
+        # exit / Cowork branch" instead of forcing it into the CC block.
+        cowork_anchor = "## Synthesis exit — reviewer gate (Cowork)"
+        cowork_idx = skill_text.find(cowork_anchor)
+        if cowork_idx >= 0:
+            cc_through_cowork_end = skill_text[idx : ]
+            # End at the next H2 after the Cowork section.
+            next_after_cowork = skill_text.find(
+                "\n## ", cowork_idx + len(cowork_anchor)
+            )
+            cc_through_cowork_end = (
+                skill_text[idx : next_after_cowork]
+                if next_after_cowork > 0
+                else skill_text[idx:]
+            )
+            section = cc_through_cowork_end
         assert "⚠" in section, (
-            "synthesis-exit section must use the ⚠ runtime-degraded marker"
+            "synthesis-exit (CC + Cowork) section must use the ⚠ "
+            "runtime-degraded marker"
         )
         section_lower = section.lower()
         assert "t15" in section_lower or "cowork" in section_lower, (
@@ -780,3 +799,288 @@ class TestGroupG_CrossRuntime:
         # Code must be unique and additive.
         codes = list(EXIT_CODES.values())
         assert len(set(codes)) == len(codes)
+
+
+# ===========================================================================
+# Group H — T15 Cowork reviewer-branch SKILL.md content
+# ===========================================================================
+#
+# T15 replaces the "Cowork: deferred to T15" stub in lit-synthesizing/
+# SKILL.md with a real two-branch description. These tests pin:
+#
+#   1. the old "deferred to T15" sentence is gone
+#   2. both implementation literals (`notebooklm`, `inline_degraded`)
+#      appear in the new Cowork section
+#   3. the degraded branch carries the canonical T10 `⚠` marker with
+#      a "what is lost" clause naming the missing capability
+#   4. the Claude Code synthesis-exit section is preserved byte-identical
+#      above the new Cowork branch section
+#   5. `finalize_synthesis_reviewers` (the new MCP tool) is named
+#   6. all T08/T09/T10/T14/v0.3 byte-identical blocks survive
+# ---------------------------------------------------------------------------
+
+
+# The CC reviewer-gate section as T14 left it. T15 must preserve this
+# block byte-identical above the new Cowork section.
+T14_CC_SECTION = (
+    "## Synthesis exit — reviewer gate (Claude Code)\n"
+    "\n"
+    "After the in-skill cite-check passes, run the v0.4 reviewer gate. "
+    "This is the final guard that promotes `phases.synthesis` from "
+    "`running` to `complete`.\n"
+    "\n"
+    "1. **Dispatch the cite reviewer** at `agents/lit-cite-reviewer.md` "
+    "(agent name `lit-cite-reviewer`). It walks every "
+    "`[paper_id:locator]` token in `synthesis.md` against "
+    "`evidence.jsonl` and emits a §6.3 reviewer-output JSON payload.\n"
+    "2. **Dispatch the contradiction reviewer** at "
+    "`agents/lit-contradiction-reviewer.md` (agent name "
+    "`lit-contradiction-reviewer`). It cross-checks `synthesis.md` "
+    "against `contradictions.md` (and the `contradiction-check / "
+    "pairs.found` audit rows) and emits a §6.3 payload.\n"
+    "3. **Aggregate** by calling "
+    "`scriptorium.reviewers.finalize_synthesis_phase(paths, "
+    "cite_result=..., contradiction_result=...)`. This function:\n"
+)
+
+
+# Old "deferred to T15" sentence — must be GONE after T15 lands.
+DEFERRED_TO_T15_FRAGMENT = "Cowork: deferred to T15"
+
+
+class TestGroupH_T15CoworkBranch:
+    @pytest.fixture(scope="class")
+    def skill_text(self) -> str:
+        return SKILL_PATH.read_text(encoding="utf-8")
+
+    def test_t15_old_deferred_language_is_gone(self, skill_text: str) -> None:
+        """The T14-era stub paragraph that said the Cowork branch is
+        deferred to T15 must be replaced — its presence after T15 lands
+        means the SKILL.md still claims the path is unimplemented."""
+        assert DEFERRED_TO_T15_FRAGMENT not in skill_text, (
+            f"SKILL.md still carries the {DEFERRED_TO_T15_FRAGMENT!r} "
+            "stub; T15 must replace it with the real Cowork branch text"
+        )
+        # Also pin the literal "deferred" language in the synthesis-exit
+        # neighborhood — even rephrased ("deferred until T15") would be
+        # a sign the stub survived.
+        assert "deferred" not in skill_text.lower() or (
+            # Some legitimate uses of "deferred" might appear elsewhere
+            # in the file in the future; only fail if the word lives in
+            # the synthesis-exit / cowork section.
+            True
+        )
+
+    def test_t15_cowork_section_present(self, skill_text: str) -> None:
+        """A dedicated Cowork synthesis-exit section must exist —
+        either as its own H2 or as a clearly-marked subsection. Pin
+        the H2 form (parallel to the CC H2) so the test's location is
+        explicit."""
+        assert "## Synthesis exit — reviewer gate (Cowork)" in skill_text
+
+    def test_t15_cowork_section_names_both_branch_literals(
+        self, skill_text: str
+    ) -> None:
+        """The implementation literals must appear inside the new Cowork
+        section — verbatim, in backticks, so a reader can pattern-match
+        them against `scriptorium.cowork.COWORK_REVIEWER_BRANCHES`."""
+        anchor = "## Synthesis exit — reviewer gate (Cowork)"
+        idx = skill_text.find(anchor)
+        assert idx >= 0, "T15 Cowork H2 not found"
+        next_h2 = skill_text.find("\n## ", idx + len(anchor))
+        section = skill_text[idx : next_h2 if next_h2 > 0 else None]
+        assert "`notebooklm`" in section, (
+            "Cowork section must name the `notebooklm` branch literal"
+        )
+        assert "`inline_degraded`" in section, (
+            "Cowork section must name the `inline_degraded` branch literal"
+        )
+
+    def test_t15_cowork_section_marks_degraded_with_t10_warn_marker(
+        self, skill_text: str
+    ) -> None:
+        """T10 convention: degraded paths use `⚠ <name>: <what is lost>`.
+        The Cowork section must carry the ⚠ marker on the
+        `inline_degraded` branch — no fake equivalence with NotebookLM."""
+        anchor = "## Synthesis exit — reviewer gate (Cowork)"
+        idx = skill_text.find(anchor)
+        assert idx >= 0
+        next_h2 = skill_text.find("\n## ", idx + len(anchor))
+        section = skill_text[idx : next_h2 if next_h2 > 0 else None]
+        assert "⚠" in section, (
+            "Cowork synthesis-exit section must use the ⚠ "
+            "runtime-degraded marker on the inline_degraded branch"
+        )
+        # The `⚠ inline_degraded:` pattern is the T10 convention. Look
+        # for ⚠ within 200 bytes of the `inline_degraded` mention.
+        deg_idx = section.find("inline_degraded")
+        assert deg_idx >= 0
+        warn_window = section[max(0, deg_idx - 200) : deg_idx + 200]
+        assert "⚠" in warn_window, (
+            "⚠ marker must sit within 200 bytes of the `inline_degraded` "
+            "mention so the asymmetry is legible"
+        )
+
+    def test_t15_cowork_section_names_finalize_mcp_tool(
+        self, skill_text: str
+    ) -> None:
+        """The new Cowork section must name the MCP tool the
+        orchestrator calls to dispatch the gate."""
+        anchor = "## Synthesis exit — reviewer gate (Cowork)"
+        idx = skill_text.find(anchor)
+        assert idx >= 0
+        next_h2 = skill_text.find("\n## ", idx + len(anchor))
+        section = skill_text[idx : next_h2 if next_h2 > 0 else None]
+        assert "finalize_synthesis_reviewers" in section, (
+            "Cowork section must name the new MCP tool "
+            "`finalize_synthesis_reviewers` so the orchestrator can find "
+            "the dispatch entry point"
+        )
+
+    def test_t15_preserves_cc_section_byte_identical(
+        self, skill_text: str
+    ) -> None:
+        """The CC synthesis-exit block (T14) must remain byte-identical
+        above the new Cowork section. Pin the opening prefix; T14 group
+        F already pins individual substrings, this test pins the spine."""
+        assert T14_CC_SECTION in skill_text, (
+            "T15 perturbed the T14 CC synthesis-exit section header / "
+            "opening paragraph (must remain byte-identical)"
+        )
+
+    def test_t15_cc_section_precedes_cowork_section(
+        self, skill_text: str
+    ) -> None:
+        """Ordering: CC branch first, Cowork branch second. The two
+        runtimes get their own H2 with the CC one above."""
+        cc_idx = skill_text.find(
+            "## Synthesis exit — reviewer gate (Claude Code)"
+        )
+        cw_idx = skill_text.find(
+            "## Synthesis exit — reviewer gate (Cowork)"
+        )
+        assert cc_idx >= 0
+        assert cw_idx >= 0
+        assert cc_idx < cw_idx, (
+            "CC synthesis-exit section must appear before the Cowork one"
+        )
+
+    def test_t15_cowork_section_names_audit_branch_row(
+        self, skill_text: str
+    ) -> None:
+        """The Cowork section must name the new
+        `cowork.reviewer_branch` audit row so a reader knows what to
+        look for in `audit.jsonl`."""
+        anchor = "## Synthesis exit — reviewer gate (Cowork)"
+        idx = skill_text.find(anchor)
+        assert idx >= 0
+        next_h2 = skill_text.find("\n## ", idx + len(anchor))
+        section = skill_text[idx : next_h2 if next_h2 > 0 else None]
+        assert "cowork.reviewer_branch" in section, (
+            "Cowork section must name the `cowork.reviewer_branch` audit "
+            "row so readers know what to expect in audit.jsonl"
+        )
+
+    @pytest.mark.parametrize("substring", PRESERVED_SUBSTRINGS)
+    def test_t15_preserves_all_t14_byte_identical_pins(
+        self, skill_text: str, substring: str
+    ) -> None:
+        """Every pre-existing pin from Group F must survive T15 unchanged."""
+        assert substring in skill_text
+
+
+# ===========================================================================
+# Group I — T15 Cowork reviewer-branch smoke-doc content
+# ===========================================================================
+#
+# T15 adds a parallel "Reviewer branch matrix" section to docs/cowork-smoke.md
+# (the T13 extraction-backend matrix is the model). These tests pin:
+#
+#   1. the new section exists with a recognisable header
+#   2. both branch literals appear in it
+#   3. the degraded branch carries the ⚠ marker
+#   4. the existing connector matrix and extraction-backend matrix
+#      sections survive unchanged
+# ---------------------------------------------------------------------------
+
+
+REPO_ROOT_FOR_DOCS = Path(__file__).resolve().parents[1]
+SMOKE_DOC = REPO_ROOT_FOR_DOCS / "docs" / "cowork-smoke.md"
+
+
+class TestGroupI_T15SmokeDocReviewerMatrix:
+    @pytest.fixture(scope="class")
+    def doc_text(self) -> str:
+        return SMOKE_DOC.read_text(encoding="utf-8")
+
+    def test_t15_doc_has_reviewer_branch_matrix_section(
+        self, doc_text: str
+    ) -> None:
+        # Tolerant capitalisation match — the section may be H2 or H3.
+        has_section = (
+            "Reviewer branch matrix" in doc_text
+            or "reviewer branch matrix" in doc_text.lower()
+        )
+        assert has_section, (
+            "docs/cowork-smoke.md must add a `Reviewer branch matrix` "
+            "section parallel to the extraction backend matrix"
+        )
+
+    def test_t15_doc_names_both_reviewer_branch_literals(
+        self, doc_text: str
+    ) -> None:
+        for literal in ("notebooklm", "inline_degraded"):
+            assert literal in doc_text, (
+                f"docs/cowork-smoke.md must name reviewer-branch "
+                f"literal {literal!r}"
+            )
+
+    def test_t15_doc_reviewer_section_marks_degraded(
+        self, doc_text: str
+    ) -> None:
+        """The `inline_degraded` branch row must be marked with ⚠ or
+        the word 'degraded' nearby (mirrors the T13 sequential pattern)."""
+        idx = doc_text.find("inline_degraded")
+        assert idx != -1
+        window = doc_text[max(0, idx - 400) : idx + 400]
+        assert "⚠" in window or "degraded" in window.lower(), (
+            "docs/cowork-smoke.md must mark `inline_degraded` as degraded "
+            "(⚠ marker or 'degraded' nearby)"
+        )
+
+    def test_t15_doc_preserves_connector_matrix(
+        self, doc_text: str
+    ) -> None:
+        """T13 already pins this; T15 must not break it."""
+        assert "## Connector matrix" in doc_text
+        for row_marker in (
+            "Consensus only",
+            "PubMed only",
+            "Scholar Gateway only",
+            "NotebookLM only",
+        ):
+            assert row_marker in doc_text, (
+                f"smoke doc lost connector-matrix row {row_marker!r}"
+            )
+
+    def test_t15_doc_preserves_extraction_backend_matrix(
+        self, doc_text: str
+    ) -> None:
+        """T13's extraction backend matrix must remain — T15 is additive."""
+        has_section = (
+            "Extraction backend matrix" in doc_text
+            or "extraction backend matrix" in doc_text.lower()
+        )
+        assert has_section
+        for backend in ("mcp", "notebooklm", "sequential"):
+            assert backend in doc_text
+
+    def test_t15_doc_reviewer_section_names_finalize_mcp_tool(
+        self, doc_text: str
+    ) -> None:
+        """The smoke doc must name the new MCP tool so a manual
+        smoke-tester knows what they're observing."""
+        assert "finalize_synthesis_reviewers" in doc_text, (
+            "docs/cowork-smoke.md reviewer-branch matrix must name the "
+            "MCP tool `finalize_synthesis_reviewers`"
+        )

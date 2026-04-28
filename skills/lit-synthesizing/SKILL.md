@@ -70,7 +70,27 @@ After the in-skill cite-check passes, run the v0.4 reviewer gate. This is the fi
 
 If `synthesis.md` is later edited, the next `phase_state.read()` auto-downgrades `phases.synthesis` from `complete` back to `running` (the artifact's hash no longer matches the recorded `verifier_signature`). That's intentional v0.4 architecture; re-run the reviewer gate to re-promote.
 
-⚠ **Cowork: deferred to T15.** This reviewer-gate path is Claude Code only — Cowork has no `Task` tool to dispatch sub-agents and no filesystem to host the agent prompts. T15 will wire the Cowork branch (likely as MCP-tool reviewer payloads emitted by the model directly). Until T15 lands, Cowork synthesis exits via the in-skill cite-check above and DOES NOT call `finalize_synthesis_phase`.
+## Synthesis exit — reviewer gate (Cowork)
+
+Cowork has no `Task` tool to dispatch CC-style sub-agents and no filesystem to host the agent prompts. The same §6.3 reviewer gate runs through the `mcp__scriptorium__finalize_synthesis_reviewers` MCP tool, with the orchestrator emitting both reviewer payloads and naming which branch produced them. The branch is selected by the `using-scriptorium` runtime probe at startup.
+
+Two branches, named verbatim by their `scriptorium.cowork.COWORK_REVIEWER_BRANCHES` literal:
+
+1. **`notebooklm`** (preferred). Phase 0 / T02 graded NotebookLM's text-source ingestion as `pass` — see `tests/test_layer_b_runtime_parity.py::T15_COWORK_REVIEWER_BRANCH`. The orchestrator:
+   - Creates a fresh notebook (`mcp__notebooklm-mcp__notebook_create`).
+   - Adds `synthesis.md` and `evidence.jsonl` as text sources via `source_add(source_type="text", ...)` — the spike's pinned source form.
+   - Asks a reviewer-style query for the cite reviewer; transcribes the response into a §6.3 payload.
+   - Repeats the query for the contradiction reviewer (cross-checking against `contradictions.md`).
+   - Calls `mcp__scriptorium__finalize_synthesis_reviewers(review_dir=..., cite_result=..., contradiction_result=..., cowork_branch="notebooklm")`. The tool runs the same `finalize_synthesis_phase` aggregation as Claude Code, then appends a fourth audit row `cowork.reviewer_branch` with `status="success"` and `details.branch="notebooklm"`.
+   - Deletes the scratch notebook (or rotates a long-lived scratch notebook between runs).
+
+2. **`⚠ inline_degraded` (degraded path):** what is lost is the isolated reviewer context. The orchestrator emits both §6.3 payloads from its own model turn — no fresh notebook, no separate context boundary, no reviewer hash that's distinct from the drafting context. Use this branch only when NotebookLM is unavailable. The MCP tool appends `cowork.reviewer_branch` with `status="warning"` and `details.degraded=true` so a human auditor scanning `audit.md` sees the degraded run at a glance. Do not claim parity with the `notebooklm` branch.
+
+**Branch selection rule.** The `using-scriptorium` runtime probe sets `REVIEWER_BRANCH` from the connectors the user has enabled: NotebookLM enabled → `notebooklm`; NotebookLM absent → `inline_degraded`. The orchestrator must NOT silently fall back from `notebooklm` to `inline_degraded` mid-run — if NotebookLM ingest fails, surface the error and stop, rather than producing a `notebooklm`-branded payload that the inline branch actually wrote.
+
+**Audit row quartet per Cowork gate run**: `reviewer.cite`, `reviewer.contradiction`, `synthesis.gate`, `cowork.reviewer_branch`. If you don't see all four in `audit.jsonl` after a `finalize_synthesis_reviewers` call, the gate did not run to completion — investigate before declaring synthesis done.
+
+The §6.3 schema is unchanged in this branch — `runtime="cowork"` is the only payload-level marker. The branch literal lives in the `cowork.reviewer_branch` audit row's `details["branch"]`, not on the §6.3 payload itself.
 
 ## Hand-off
 

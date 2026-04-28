@@ -61,6 +61,19 @@ When extraction starts, the `using-scriptorium` runtime probe sets `ISOLATION_BA
 
 To verify manually: after extraction completes, open `audit.jsonl` and confirm every `extraction.dispatch` row carries the expected `backend` literal for the runtime probe you observed. If you saw `mcp` in the probe but the audit row says `sequential`, the orchestrator silently degraded — investigate before tagging the review complete.
 
+## Reviewer branch matrix
+
+When `lit-synthesizing` reaches the synthesis-exit reviewer gate, the `using-scriptorium` runtime probe sets `REVIEWER_BRANCH` from the connectors the user has enabled. The orchestrator then calls `mcp__scriptorium__finalize_synthesis_reviewers(review_dir, cite_result, contradiction_result, cowork_branch=<literal>)`. Verify the per-gate flow against the row that matches the connectors you enabled.
+
+| REVIEWER_BRANCH probed | Connectors required | Expected per-gate flow | Reviewer-context isolation |
+|---|---|---|---|
+| `notebooklm` | NotebookLM enabled | Orchestrator creates a fresh notebook (`notebook_create`), adds `synthesis.md` and `evidence.jsonl` via `source_add(source_type="text")`, queries the cite reviewer prompt and the contradiction reviewer prompt, transcribes each response into a §6.3 payload, then calls `mcp__scriptorium__finalize_synthesis_reviewers(..., cowork_branch="notebooklm")`. The MCP tool runs the standard finalize aggregation, then appends a `cowork.reviewer_branch` audit row with `status="success"` and `details.branch="notebooklm"`. Notebook is deleted (or rotated as a long-lived scratch). | HIGH (fresh notebook) / MEDIUM (rotating scratch) |
+| `⚠ inline_degraded` | NotebookLM not enabled | **Degraded path.** Orchestrator emits both §6.3 payloads from its own model turn — no fresh notebook context, no separate reviewer hash, no parity claim with the `notebooklm` branch. Calls `mcp__scriptorium__finalize_synthesis_reviewers(..., cowork_branch="inline_degraded")`. The MCP tool appends `cowork.reviewer_branch` with `status="warning"` and `details.degraded=true` so a human auditor scanning `audit.md` sees the degraded run at a glance. Do not claim parity with `notebooklm`. | LOW (drafting context only) |
+
+Audit row quartet per Cowork gate run: `reviewer.cite`, `reviewer.contradiction`, `synthesis.gate`, `cowork.reviewer_branch`. To verify manually: after the gate completes, open `audit.jsonl` and confirm all four rows are present. The fourth row's `details.branch` must match the `REVIEWER_BRANCH` literal the runtime probe announced. If you saw `notebooklm` in the probe but the audit row says `inline_degraded`, the orchestrator silently degraded — investigate before declaring synthesis complete.
+
+The branch literals are pinned in `scriptorium.cowork.COWORK_REVIEWER_BRANCHES`. The Phase 0 / T02 spike grade lives at `tests/test_layer_b_runtime_parity.py::T15_COWORK_REVIEWER_BRANCH`; the implementation literals must agree with that pin.
+
 ## Publishing smoke (NotebookLM)
 
 With NotebookLM enabled, after `lit-synthesizing` + `lit-contradiction-check` pass, say:

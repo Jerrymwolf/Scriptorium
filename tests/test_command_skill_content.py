@@ -438,31 +438,43 @@ def test_t10_warning_marker_in_each_skill():
 
 
 def _t10_extract_cowork_section(text: str) -> str:
-    """Return the Cowork-path section body.
+    """Return the Cowork-path section body — concatenated if a skill has
+    several Cowork sections.
 
-    Skills name the Cowork path two different ways:
+    Skills name the Cowork path two different ways, and a single skill
+    may carry BOTH after T15:
 
-    1. As an H2 — `## Workflow — Cowork` / `## Workflow — Cowork path`
-       (lit-screening, lit-extracting, lit-contradiction-check). We
-       slice from that H2 to the next H2.
+    1. As an H2 — `## Workflow — Cowork`, `## Synthesis exit — reviewer
+       gate (Cowork)`, etc. We slice each from its H2 to the next H2.
     2. As a `**Cowork:**` bolded paragraph inside `## Runtime specifics`
-       (lit-synthesizing). We slice from the `**Cowork:**` line to the
-       next blank line followed by `**` or `## ` (i.e. end of paragraph).
+       (lit-synthesizing's degraded-capability paragraph lives here).
+       We slice from the `**Cowork:**` line to the next blank line
+       followed by `**` or `## ` (i.e. end of paragraph).
 
     Both shapes count as "the Cowork section" for runtime-honesty
-    purposes — they're where the ⚠ marker must live.
+    purposes — they're where the ⚠ marker and the "what is lost" prose
+    must live. We concatenate ALL matching shapes so a skill that
+    documents multiple Cowork branches (T15: synthesis-exit gate +
+    runtime-specifics degraded-capability paragraph) still passes the
+    "Cowork section names the degraded capability" pin.
     """
     lines = text.splitlines(keepends=True)
-    # Shape 1: H2 header containing 'Cowork'
-    for i, line in enumerate(lines):
+    fragments: list[str] = []
+    # Shape 1: every H2 header containing 'Cowork'.
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         if line.startswith("## ") and "Cowork" in line:
             end = len(lines)
             for j in range(i + 1, len(lines)):
                 if lines[j].startswith("## "):
                     end = j
                     break
-            return "".join(lines[i:end])
-    # Shape 2: `**Cowork:**` bolded paragraph
+            fragments.append("".join(lines[i:end]))
+            i = end
+            continue
+        i += 1
+    # Shape 2: every `**Cowork:**` bolded paragraph.
     for i, line in enumerate(lines):
         if line.startswith("**Cowork:**"):
             end = len(lines)
@@ -470,8 +482,13 @@ def _t10_extract_cowork_section(text: str) -> str:
                 if lines[j].startswith("## ") or lines[j].startswith("**"):
                     end = j
                     break
-            return "".join(lines[i:end])
-    raise AssertionError("no Cowork section found (no H2 with 'Cowork' and no '**Cowork:**' bold paragraph)")
+            fragments.append("".join(lines[i:end]))
+    if not fragments:
+        raise AssertionError(
+            "no Cowork section found (no H2 with 'Cowork' and no "
+            "'**Cowork:**' bold paragraph)"
+        )
+    return "\n".join(fragments)
 
 
 def test_t10_cowork_section_carries_warning_marker():
@@ -576,3 +593,63 @@ def test_t10_preserves_v03_additions_blocks():
             f"{skill}/SKILL.md: T10 edits removed the `## v0.3 additions` "
             "block (must remain present)"
         )
+
+
+# ---------------------------------------------------------------------------
+# T15 — Cowork reviewer-branch SKILL.md additivity
+#
+# T15 replaces the "Cowork: deferred to T15" stub in lit-synthesizing/
+# SKILL.md with a real two-branch description (`notebooklm` happy path,
+# `inline_degraded` honest-degraded path). The edit must be additive on
+# every other section: T08 fallback, T09 HARD-GATE, T10 red-flags, T14
+# CC reviewer-gate header, and the trailing v0.3 additions block.
+# ---------------------------------------------------------------------------
+
+
+def test_t15_lit_synthesizing_preserves_t08_fallback():
+    """T15 must not perturb the T08 byte-identical fallback line."""
+    text = _t08_skill_path("lit-synthesizing").read_text(encoding="utf-8")
+    assert T08_FALLBACK_LINE in text, (
+        "T15 broke the T08 byte-identical defensive fallback line in "
+        "lit-synthesizing/SKILL.md"
+    )
+
+
+def test_t15_lit_synthesizing_preserves_t09_hard_gate():
+    text = _t10_skill_path("lit-synthesizing").read_text(encoding="utf-8")
+    assert T09_HARD_GATE_SYNTHESIZING in text, (
+        "T15 broke the T09 HARD-GATE block in lit-synthesizing/SKILL.md"
+    )
+
+
+def test_t15_lit_synthesizing_preserves_t10_red_flag_header():
+    text = _t10_skill_path("lit-synthesizing").read_text(encoding="utf-8")
+    assert T10_RED_FLAG_HEADER in text, (
+        "T15 broke the T10 red-flag header in lit-synthesizing/SKILL.md"
+    )
+
+
+def test_t15_lit_synthesizing_preserves_v03_additions_at_bottom():
+    """The `## v0.3 additions` block must still be the trailing H2 —
+    T15's new Cowork section sits ABOVE it (between Hand-off and v0.3
+    additions, since the gate sections precede hand-off)."""
+    import re
+    text = _t10_skill_path("lit-synthesizing").read_text(encoding="utf-8")
+    h2_positions = [m.start() for m in re.finditer(r"^## ", text, re.MULTILINE)]
+    assert h2_positions
+    last_h2_line = text[h2_positions[-1]:].splitlines()[0]
+    assert last_h2_line == "## v0.3 additions", (
+        f"T15 perturbed the trailing v0.3 additions block; last H2 is "
+        f"{last_h2_line!r}"
+    )
+
+
+def test_t15_lit_synthesizing_old_deferred_stub_is_gone():
+    """The 'Cowork: deferred to T15' stub paragraph must be replaced.
+    Its presence after T15 lands means the SKILL still claims the path
+    is unimplemented — caught here AND in test_layer_b_reviewers Group H."""
+    text = _t10_skill_path("lit-synthesizing").read_text(encoding="utf-8")
+    assert "Cowork: deferred to T15" not in text, (
+        "lit-synthesizing/SKILL.md still carries the 'Cowork: deferred "
+        "to T15' stub; T15 replaces it"
+    )

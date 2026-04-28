@@ -1,10 +1,16 @@
 """Scriptorium MCP server — Cowork-facing enforcement surface (T04).
 
 Exposes the same enforcement tools as the CLI so Cowork can call them via the
-Model Context Protocol.  The six registered tools match §6.5:
+Model Context Protocol.  The six §6.5 tools are:
 
     verify, phase_show, phase_set, phase_override,
-    extract_paper (stub), validate_reviewer_output
+    extract_paper, validate_reviewer_output
+
+T15 adds one Cowork-only enforcement tool that wraps the §6.3 reviewer
+gate so an orchestrator without local shell access can promote
+``phases.synthesis`` to ``complete``:
+
+    finalize_synthesis_reviewers
 
 INJECTION.md is loaded from ``<plugin_root>/skills/using-scriptorium/INJECTION.md``
 (plugin root = three levels up from this file: mcp/ → scriptorium/ → repo root).
@@ -360,3 +366,114 @@ def validate_reviewer_output(payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True}
     except ScriptoriumError as e:
         return {"ok": False, "error": str(e), "code": EXIT_CODES[e.symbol]}
+
+
+# ---------------------------------------------------------------------------
+# Tool: finalize_synthesis_reviewers  (T15 — Cowork synthesis-exit gate)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def finalize_synthesis_reviewers(
+    review_dir: str,
+    cite_result: dict[str, Any],
+    contradiction_result: dict[str, Any],
+    cowork_branch: str,
+) -> dict[str, Any]:
+    """Run the §6.3 synthesis-exit reviewer gate on the Cowork branch.
+
+    Cowork has no ``Task`` tool to dispatch CC-style sub-agents and no
+    Bash to call ``scriptorium.reviewers.finalize_synthesis_phase``
+    directly. T15 wires a single MCP tool that:
+
+      1. Validates ``cowork_branch`` against
+         ``scriptorium.cowork.COWORK_REVIEWER_BRANCHES``. Unknown
+         literals short-circuit BEFORE finalize is called — no audit
+         row, no phase-state mutation. Returns ``{"error": ..., "code":
+         22}`` (``E_REVIEWER_INVALID``).
+      2. Calls ``finalize_synthesis_phase(paths, cite_result=...,
+         contradiction_result=...)`` unchanged. Schema-invalid payloads
+         surface as ``{"error": ..., "code": 22}`` from finalize itself,
+         and no ``cowork.reviewer_branch`` row is appended (the branch
+         row only exists when finalize ran).
+      3. Appends one ``cowork.reviewer_branch`` audit row carrying the
+         chosen branch literal in ``details["branch"]``. Status is
+         ``success`` for the preferred branch (``notebooklm``) and
+         ``warning`` for any literal in
+         ``COWORK_DEGRADED_REVIEWER_BRANCHES`` so a human auditor
+         scanning ``audit.md`` sees "this run used the degraded path"
+         without reading every row.
+      4. Returns the merged result: the four ``finalize_synthesis_phase``
+         keys (``synthesis_status``, ``phase_state``, ``cite_verdict``,
+         ``contradiction_verdict``) plus ``cowork_branch``.
+
+    Audit-row contract per Cowork gate run: 4 rows total
+    (``reviewer.cite`` + ``reviewer.contradiction`` + ``synthesis.gate``
+    from finalize, plus ``cowork.reviewer_branch`` from this tool).
+
+    The §6.3 schema is NOT extended by this tool — the ``cowork_branch``
+    is metadata about which branch produced the payloads, recorded as
+    its own audit row, NOT a field on the §6.3 payload itself.
+    """
+    from scriptorium.cowork import (
+        COWORK_DEGRADED_REVIEWER_BRANCHES,
+        COWORK_REVIEWER_BRANCHES,
+        is_valid_reviewer_branch,
+    )
+    from scriptorium.errors import EXIT_CODES, ScriptoriumError
+    from scriptorium.reviewers import finalize_synthesis_phase
+    from scriptorium.storage.audit import AuditEntry, append_audit
+
+    # Step 1 — branch-literal validation runs BEFORE we touch the
+    # review dir or call finalize. Short-circuit returns a structured
+    # error dict (no exception) — same shape as the other MCP tools.
+    if not is_valid_reviewer_branch(cowork_branch):
+        return {
+            "error": (
+                f"unknown cowork_branch {cowork_branch!r}; expected "
+                f"one of {list(COWORK_REVIEWER_BRANCHES)}"
+            ),
+            "code": EXIT_CODES["E_REVIEWER_INVALID"],
+        }
+
+    # The MCP tool needs to write audit rows, so we materialise the
+    # review dir on demand (matches the extract_paper precedent).
+    paths = _paths(review_dir, create=True)
+
+    # Step 2 — call finalize. Schema-invalid payloads raise
+    # E_REVIEWER_INVALID; missing synthesis.md on a both-pass case
+    # raises E_REVIEWER_ARTIFACT_MISSING. Either way, the
+    # cowork.reviewer_branch row is NOT appended — the audit trail
+    # must not claim a branch dispatch happened when finalize never
+    # reached completion.
+    try:
+        result = finalize_synthesis_phase(
+            paths,
+            cite_result=cite_result,
+            contradiction_result=contradiction_result,
+        )
+    except ScriptoriumError as e:
+        return {"error": str(e), "code": EXIT_CODES[e.symbol]}
+
+    # Step 3 — branch metadata audit row. Status reflects "this is
+    # metadata" — `success` for the preferred branch, `warning` for
+    # the degraded branch so audit.md skim flags it.
+    is_degraded = cowork_branch in COWORK_DEGRADED_REVIEWER_BRANCHES
+    branch_status = "warning" if is_degraded else "success"
+    append_audit(
+        paths,
+        AuditEntry(
+            phase="synthesis",
+            action="cowork.reviewer_branch",
+            status=branch_status,
+            details={
+                "branch": cowork_branch,
+                "degraded": is_degraded,
+            },
+        ),
+    )
+
+    # Step 4 — merged return.
+    merged = dict(result)
+    merged["cowork_branch"] = cowork_branch
+    return merged
