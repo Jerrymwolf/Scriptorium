@@ -40,10 +40,12 @@ jobs:
             tests/test_release_artifacts.py \
             tests/test_command_lit_config.py \
             tests/test_command_lit_review.py \
+            tests/test_command_skill_content.py \
             tests/test_commands_cc_only.py \
+            tests/test_setup_init.py \
+            tests/test_setup_state.py \
             tests/test_slash_publish_commands.py \
-            tests/test_slash_setup.py \
-            tests/test_version_v03.py
+            tests/test_slash_setup.py
 
       - uses: actions/upload-artifact@v4
         with:
