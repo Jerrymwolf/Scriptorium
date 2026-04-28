@@ -112,7 +112,9 @@ def test_legacy_v03_required_files_present() -> None:
     assert (root / "synthesis.md").is_file()
     assert (root / "contradictions.md").is_file()
     assert (root / "audit" / "audit.md").is_file()
-    assert (root / "data" / "evidence.jsonl").is_file()
+    # v0.3 puts evidence.jsonl at the review root, not under data/.
+    assert (root / "evidence.jsonl").is_file()
+    assert not (root / "data").exists()
 
 
 def test_legacy_v03_uses_v03_citation_format() -> None:

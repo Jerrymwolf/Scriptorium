@@ -1,8 +1,10 @@
 # PRISMA Audit Trail
 
-## Setup
+### 2026-04-26T00:00:00Z — setup / `review.init`
+- **status:** success
+- **version:** 0.4.0
 
-### 2026-04-26T00:00:00Z — fixture
-**Status:** success
+### 2026-04-26T00:01:00Z — synthesis / `synthesis.complete`
+- **status:** success
+- **claims:** 1
 
-This is a static fixture for v0.4-shaped reviews.
