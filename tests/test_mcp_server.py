@@ -142,18 +142,162 @@ def test_mcp_phase_override(review_dir):
 
 
 # ---------------------------------------------------------------------------
-# extract_paper stub
+# extract_paper (T13 — Cowork:mcp dispatch helper)
 # ---------------------------------------------------------------------------
 
 
-def test_mcp_extract_paper_returns_not_implemented(review_dir):
+def _seed_corpus(review_dir, *, paper_id="W1", status="kept", review_id=None):
+    """Append a corpus row for extract_paper tests.
+
+    `corpus.jsonl` is the single source of truth for paper metadata; the
+    MCP `extract_paper` tool refuses to dispatch unless the paper exists
+    AND is at status='kept'.
+    """
+    import json
+    from scriptorium.paths import resolve_review_dir
+    paths = resolve_review_dir(explicit=review_dir, create=True)
+    paths.corpus.parent.mkdir(parents=True, exist_ok=True)
+    row = {
+        "paper_id": paper_id,
+        "title": f"Title for {paper_id}",
+        "doi": f"10.1234/{paper_id}",
+        "abstract": "Some abstract text.",
+        "status": status,
+        "source": "test",
+    }
+    if review_id is not None:
+        row["review_id"] = review_id
+    with paths.corpus.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row) + "\n")
+    return paths
+
+
+def test_mcp_extract_paper_returns_dispatch_payload_for_kept_paper(review_dir):
+    _seed_corpus(review_dir, paper_id="W1", status="kept")
     result = mcp_server.extract_paper(
         review_dir=str(review_dir),
         paper_id="W1",
     )
+    assert "error" not in result, result
+    assert result["paper_id"] == "W1"
+    assert result["runtime"] == "cowork"
+    assert result["backend"] == "mcp"
+    # The prompt must be single-id (the T12 contamination-resistance
+    # property reused for Cowork:mcp).
+    assert "W1" in result["prompt"]
+    assert "lit-extracting" in result["prompt"]
+    # Corpus row passed through so the orchestrator can locate the PDF
+    # / abstract / DOI without a second roundtrip.
+    assert result["corpus_row"]["paper_id"] == "W1"
+
+
+def test_mcp_extract_paper_review_id_arg_wins_over_corpus_row(review_dir):
+    """Explicit `review_id` argument overrides the corpus row's field."""
+    _seed_corpus(review_dir, paper_id="W1", status="kept", review_id="row-rev")
+    result = mcp_server.extract_paper(
+        review_dir=str(review_dir),
+        paper_id="W1",
+        review_id="explicit-rev",
+    )
+    assert result["review_id"] == "explicit-rev"
+
+
+def test_mcp_extract_paper_falls_back_to_corpus_review_id(review_dir):
+    _seed_corpus(review_dir, paper_id="W1", status="kept", review_id="row-rev")
+    result = mcp_server.extract_paper(
+        review_dir=str(review_dir),
+        paper_id="W1",
+    )
+    assert result["review_id"] == "row-rev"
+
+
+def test_mcp_extract_paper_falls_back_to_review_dir_basename(review_dir):
+    _seed_corpus(review_dir, paper_id="W1", status="kept")  # no review_id
+    result = mcp_server.extract_paper(
+        review_dir=str(review_dir),
+        paper_id="W1",
+    )
+    # `review_dir` fixture is `tmp_path / "review"`, basename = "review"
+    assert result["review_id"] == review_dir.name
+
+
+def test_mcp_extract_paper_unknown_paper_returns_error(review_dir):
+    _seed_corpus(review_dir, paper_id="W1", status="kept")
+    result = mcp_server.extract_paper(
+        review_dir=str(review_dir),
+        paper_id="W999",
+    )
     assert "error" in result
-    assert result["code"] == 23  # E_NOT_IMPLEMENTED — must be int, not string
-    assert "T12" in result["error"]
+    assert result["code"] == 29  # E_EXTRACT_PAPER_NOT_KEPT
+    assert "W999" in result["error"]
+
+
+def test_mcp_extract_paper_candidate_status_returns_error(review_dir):
+    """Papers at status='candidate' have not passed screening; the MCP
+    tool must refuse to build a dispatch payload (mirrors the SKILL's
+    HARD-GATE)."""
+    _seed_corpus(review_dir, paper_id="W2", status="candidate")
+    result = mcp_server.extract_paper(
+        review_dir=str(review_dir),
+        paper_id="W2",
+    )
+    assert "error" in result
+    assert result["code"] == 29  # E_EXTRACT_PAPER_NOT_KEPT
+    assert "candidate" in result["error"]
+
+
+def test_mcp_extract_paper_excluded_status_returns_error(review_dir):
+    _seed_corpus(review_dir, paper_id="W3", status="excluded")
+    result = mcp_server.extract_paper(
+        review_dir=str(review_dir),
+        paper_id="W3",
+    )
+    assert "error" in result
+    assert result["code"] == 29
+
+
+def test_mcp_extract_paper_appends_audit_row(review_dir):
+    """Successful dispatch appends one extraction.dispatch row with
+    runtime='cowork' and backend='mcp'."""
+    from scriptorium.storage.audit import load_audit
+    paths = _seed_corpus(review_dir, paper_id="W1", status="kept", review_id="rev-aud")
+    mcp_server.extract_paper(
+        review_dir=str(review_dir),
+        paper_id="W1",
+    )
+    rows = load_audit(paths)
+    # Filter to the extraction.dispatch action so any unrelated audit
+    # rows from fixture setup don't trip this test.
+    dispatch_rows = [r for r in rows if r.action == "extraction.dispatch"]
+    assert len(dispatch_rows) == 1, (
+        f"expected exactly one extraction.dispatch row, got "
+        f"{len(dispatch_rows)}"
+    )
+    row = dispatch_rows[0]
+    assert row.phase == "extraction"
+    assert row.status == "success"
+    assert row.details["paper_id"] == "W1"
+    assert row.details["review_id"] == "rev-aud"
+    assert row.details["runtime"] == "cowork"
+    assert row.details["backend"] == "mcp"
+
+
+def test_mcp_extract_paper_does_not_audit_on_failed_lookup(review_dir):
+    """If the paper is missing/not-kept, no `extraction.dispatch` row
+    should be appended — we don't audit a refusal as a successful
+    dispatch (it never happened)."""
+    from scriptorium.storage.audit import load_audit
+    paths = _seed_corpus(review_dir, paper_id="W1", status="candidate")
+    mcp_server.extract_paper(
+        review_dir=str(review_dir),
+        paper_id="W1",
+    )
+    rows = load_audit(paths)
+    dispatch_rows = [r for r in rows if r.action == "extraction.dispatch"]
+    assert dispatch_rows == [], (
+        "extract_paper must NOT append an extraction.dispatch row when "
+        "the paper is missing or not at status='kept'"
+    )
 
 
 def test_mcp_phase_show_does_not_create_sibling_dirs(tmp_path):

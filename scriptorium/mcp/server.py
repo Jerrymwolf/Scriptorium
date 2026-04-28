@@ -223,7 +223,7 @@ def phase_override(
 
 
 # ---------------------------------------------------------------------------
-# Tool: extract_paper  (stub — T12/T13)
+# Tool: extract_paper  (T13 — Cowork:mcp dispatch helper)
 # ---------------------------------------------------------------------------
 
 
@@ -231,16 +231,109 @@ def phase_override(
 def extract_paper(
     review_dir: str,
     paper_id: str,
+    review_id: str | None = None,
 ) -> dict[str, Any]:
-    """Extract structured evidence from a paper (NOT YET IMPLEMENTED in v0.4).
+    """Resolve the per-paper extraction payload for a Cowork orchestrator.
 
-    This tool will be wired in T12/T13.  Returns a structured error now so
-    Cowork can handle it gracefully rather than receiving an exception.
+    The MCP server runs server-side; it cannot perform extraction itself
+    (that lives in the orchestrator's model turn). What this tool does:
+
+      1. Validate the paper exists in ``corpus.jsonl`` and is at
+         ``status="kept"`` — the same gate the CC `lit-extracting` skill
+         reads at startup.
+      2. Build the canonical per-paper prompt via
+         ``scriptorium.extract.build_per_paper_prompt`` so the prompt
+         template has one source of truth.
+      3. Append an ``extraction.dispatch`` audit row carrying
+         ``runtime="cowork", backend="mcp"``.
+      4. Return the dispatch payload the orchestrator hands to its
+         model turn:
+
+             {
+               "paper_id": "...",
+               "review_id": "...",
+               "prompt": "...",
+               "corpus_row": {...},
+               "runtime": "cowork",
+               "backend": "mcp",
+             }
+
+    On a missing or non-kept paper, returns ``{"error": ..., "code": ...}``
+    with ``E_EXTRACT_PAPER_NOT_KEPT``. ``review_id`` may be passed
+    explicitly; if absent we fall back to the corpus row's ``review_id``
+    field, then to the review-dir basename.
     """
     from scriptorium.errors import EXIT_CODES
+    from scriptorium.extract import build_per_paper_prompt
+    from scriptorium.storage.audit import AuditEntry, append_audit
+    from scriptorium.storage.corpus import load_corpus
+
+    # The MCP tool needs to write an audit row, so we materialise the
+    # review dir on demand. resolve_review_dir(create=True) is fine
+    # here — extract_paper is a write-side tool.
+    paths = _paths(review_dir, create=True)
+
+    rows = load_corpus(paths)
+    matches = [r for r in rows if r.get("paper_id") == paper_id]
+    if not matches:
+        return {
+            "error": (
+                f"paper_id {paper_id!r} not found in corpus.jsonl at "
+                f"{paths.corpus}"
+            ),
+            "code": EXIT_CODES["E_EXTRACT_PAPER_NOT_KEPT"],
+        }
+    corpus_row = matches[0]
+    if corpus_row.get("status") != "kept":
+        return {
+            "error": (
+                f"paper_id {paper_id!r} has status="
+                f"{corpus_row.get('status')!r}; extraction requires "
+                "status='kept' (run lit-screening first)"
+            ),
+            "code": EXIT_CODES["E_EXTRACT_PAPER_NOT_KEPT"],
+        }
+
+    resolved_review_id = (
+        review_id
+        or corpus_row.get("review_id")
+        or paths.root.name
+    )
+
+    prompt = build_per_paper_prompt(
+        paper_id=paper_id,
+        review_id=resolved_review_id,
+        runtime="cowork",
+        backend="mcp",
+    )
+
+    # Audit-row hygiene must mirror the in-process orchestrator:
+    # exactly one extraction.dispatch row per dispatched paper, with
+    # runtime/backend in details. The MCP tool dispatches on the
+    # orchestrator's behalf, so the row is appended here rather than
+    # inside run_extraction.
+    append_audit(
+        paths,
+        AuditEntry(
+            phase="extraction",
+            action="extraction.dispatch",
+            status="success",
+            details={
+                "paper_id": paper_id,
+                "review_id": resolved_review_id,
+                "runtime": "cowork",
+                "backend": "mcp",
+            },
+        ),
+    )
+
     return {
-        "error": "extract_paper not yet implemented in v0.4 (T12/T13)",
-        "code": EXIT_CODES["E_NOT_IMPLEMENTED"],
+        "paper_id": paper_id,
+        "review_id": resolved_review_id,
+        "prompt": prompt,
+        "corpus_row": corpus_row,
+        "runtime": "cowork",
+        "backend": "mcp",
     }
 
 

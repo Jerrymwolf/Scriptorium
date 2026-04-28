@@ -49,6 +49,18 @@ When Consensus is enabled and returns results, the `lit-searching` skill MUST:
 
 To verify manually: after a Consensus-backed search, open the corpus note (or `corpus.jsonl` file in NotebookLM) and confirm every row carries the `[paper_id:locator]` vocabulary — never a numbered `[1]`.
 
+## Extraction backend matrix
+
+When extraction starts, the `using-scriptorium` runtime probe sets `ISOLATION_BACKEND` from the connectors the user has enabled. The orchestrator then calls `scriptorium.extract.run_extraction(..., runtime="cowork", cowork_backend=<literal>, ...)`. Verify the per-paper flow against the row that matches the connectors you enabled.
+
+| ISOLATION_BACKEND probed | Connectors required | Expected per-paper flow | Isolation grade |
+|---|---|---|---|
+| `mcp` | scriptorium-mcp running | Orchestrator calls `mcp__scriptorium__extract_paper(review_dir, paper_id)` per paper. Each call returns a single-id prompt resolved server-side. `parallel_cap` honored (3-5 concurrent). Audit row carries `backend="mcp"`. | HIGH |
+| `notebooklm` | NotebookLM enabled; no scriptorium-mcp | Orchestrator creates a fresh notebook per paper via `mcp__notebooklm-mcp__notebook_create` → `source_add(source_type="text" or "file")` → `notebook_query` → `notebook_delete`. Quota-pressured users may rotate a single scratch notebook (Isolation: MEDIUM). `parallel_cap` honored. Audit row carries `backend="notebooklm"`. | HIGH (fresh notebook) / MEDIUM (rotating scratch) |
+| `⚠ sequential` | Neither scriptorium-mcp nor NotebookLM | **Degraded path.** Single chat thread, papers one at a time, with a context-clear prompt between them. Batch ceiling: 5 papers per chat, then a user-facing checkpoint to start a fresh chat. `parallel_cap` is **ignored** — runs strictly serially. Audit row carries `backend="sequential"`. Do not claim parity with `mcp`/`notebooklm`. | LOW (prompt-discipline only) |
+
+To verify manually: after extraction completes, open `audit.jsonl` and confirm every `extraction.dispatch` row carries the expected `backend` literal for the runtime probe you observed. If you saw `mcp` in the probe but the audit row says `sequential`, the orchestrator silently degraded — investigate before tagging the review complete.
+
 ## Publishing smoke (NotebookLM)
 
 With NotebookLM enabled, after `lit-synthesizing` + `lit-contradiction-check` pass, say:

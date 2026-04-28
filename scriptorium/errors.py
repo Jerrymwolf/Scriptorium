@@ -39,6 +39,10 @@ EXIT_CODES: dict[str, int] = {
     "E_EXTRACT_BAD_CAP": 24,
     "E_EXTRACT_NO_DISPATCHER": 25,
     "E_EXTRACT_UNKNOWN_RUNTIME": 26,
+    # v0.4 Layer B — Cowork backend dispatch (T13)
+    "E_EXTRACT_UNKNOWN_BACKEND": 27,
+    "E_EXTRACT_NO_BACKEND": 28,
+    "E_EXTRACT_PAPER_NOT_KEPT": 29,
     "E_INTERRUPTED": 130,
 }
 
